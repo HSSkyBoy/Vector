@@ -7,6 +7,9 @@ import android.os.Process
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import java.io.File
+import java.io.FileOutputStream
+import java.util.LinkedHashSet
+import java.util.zip.ZipFile
 import org.lsposed.lspd.models.Module
 import org.lsposed.lspd.service.ILSPInjectedModuleService
 import org.lsposed.lspd.service.IRemotePreferenceCallback
@@ -37,15 +40,8 @@ object VectorModuleManager {
                         return false
                     }
 
-            // Construct the native library search path
-            val librarySearchPath = buildString {
-                val abis =
-                    if (Process.is64Bit()) Build.SUPPORTED_64_BIT_ABIS
-                    else Build.SUPPORTED_32_BIT_ABIS
-                for (abi in abis) {
-                    append(module.apkPath).append("!/lib/").append(abi).append(File.pathSeparator)
-                }
-            }
+            val nativeLibraryDir = prepareNativeLibraryDir(module)
+            val librarySearchPath = buildLibrarySearchPath(module, nativeLibraryDir)
 
             // Create the isolated ClassLoader for the module
             val initLoader = XposedModule::class.java.classLoader
@@ -75,12 +71,18 @@ object VectorModuleManager {
                         publicSourceDir = module.apkPath
                         uid = module.appId
                     }
+            if (nativeLibraryDir != null) {
+                moduleApplicationInfo.nativeLibraryDir = nativeLibraryDir.absolutePath
+            }
             val vectorContext =
                 VectorContext(
                     packageName = module.packageName,
                     applicationInfo = moduleApplicationInfo,
                     service = module.service ?: EmptyInjectedModuleService,
                 )
+
+            // Native entrypoints must be ready before Java onModuleLoaded() can call into JNI.
+            initializeNativeEntrypoints(module, nativeLibraryDir, preLoadedApk.moduleLibraryNames)
 
             // Instantiate the module entry classes
             for (className in preLoadedApk.moduleClassNames) {
@@ -115,11 +117,6 @@ object VectorModuleManager {
                     .onFailure { e -> Log.e(TAG, "Failed to instantiate class $className", e) }
             }
 
-            // Register any native JNI entrypoints declared by the module
-            preLoadedApk.moduleLibraryNames.forEach { libraryName ->
-                NativeAPI.recordNativeEntrypoint(libraryName)
-            }
-
             Log.d(TAG, "Loaded module ${module.packageName} successfully.")
             return true
         } catch (e: Throwable) {
@@ -141,5 +138,127 @@ object VectorModuleManager {
         override fun openRemoteFile(path: String?): ParcelFileDescriptor? = null
 
         override fun getRemoteFileList(): Array<String> = emptyArray()
+    }
+
+    private fun initializeNativeEntrypoints(
+        module: Module,
+        nativeLibraryDir: File?,
+        moduleLibraryNames: List<String>,
+    ) {
+        for (libraryName in moduleLibraryNames) {
+            var initialized = false
+            for (fileName in nativeLibraryFileNames(libraryName)) {
+                NativeAPI.recordNativeEntrypoint(fileName)
+                for (candidate in buildNativeInitCandidates(module, nativeLibraryDir, fileName)) {
+                    if (NativeAPI.initializeNativeEntrypoint(fileName, candidate)) {
+                        Log.i(TAG, "Prepared native library $fileName from $candidate")
+                        initialized = true
+                        break
+                    }
+                }
+                if (initialized) {
+                    break
+                }
+            }
+        }
+    }
+
+    private fun prepareNativeLibraryDir(module: Module): File? {
+        return runCatching {
+                val apkFile = File(module.apkPath)
+                val parent = apkFile.parentFile ?: return null
+                val moduleRoot = File(parent, "native/${module.packageName.replace('.', '_')}")
+                val targetDir = File(moduleRoot, "${apkFile.lastModified()}-${apkFile.length()}")
+                if (
+                    targetDir.isDirectory &&
+                        targetDir.listFiles { file -> file.name.endsWith(".so") }?.isNotEmpty() == true
+                ) {
+                    return targetDir
+                }
+
+                moduleRoot.deleteRecursively()
+                targetDir.mkdirs()
+
+                val abis =
+                    if (Process.is64Bit()) Build.SUPPORTED_64_BIT_ABIS
+                    else Build.SUPPORTED_32_BIT_ABIS
+                ZipFile(apkFile).use { zip ->
+                    for (abi in abis) {
+                        val prefix = "lib/$abi/"
+                        var extractedAny = false
+                        val entries = zip.entries()
+                        while (entries.hasMoreElements()) {
+                            val entry = entries.nextElement()
+                            val name = entry.name
+                            if (entry.isDirectory || !name.startsWith(prefix) || !name.endsWith(".so")) {
+                                continue
+                            }
+
+                            val outFile = File(targetDir, File(name).name)
+                            zip.getInputStream(entry).use { input ->
+                                FileOutputStream(outFile).use { output -> input.copyTo(output) }
+                            }
+                            outFile.setReadable(true, false)
+                            outFile.setExecutable(true, false)
+                            outFile.setWritable(false, false)
+                            extractedAny = true
+                        }
+                        if (extractedAny) {
+                            Log.i(
+                                TAG,
+                                "Prepared native libraries for ${module.packageName} $abi at $targetDir",
+                            )
+                            return targetDir
+                        }
+                    }
+                }
+
+                targetDir.deleteRecursively()
+                null
+            }
+            .onFailure { Log.e(TAG, "Failed to prepare native dir for ${module.packageName}", it) }
+            .getOrNull()
+    }
+
+    private fun buildLibrarySearchPath(module: Module, nativeLibraryDir: File?): String {
+        return buildString {
+            if (nativeLibraryDir != null) {
+                append(nativeLibraryDir.absolutePath).append(File.pathSeparator)
+            }
+            val abis =
+                if (Process.is64Bit()) Build.SUPPORTED_64_BIT_ABIS else Build.SUPPORTED_32_BIT_ABIS
+            for (abi in abis) {
+                append(module.apkPath).append("!/lib/").append(abi).append(File.pathSeparator)
+            }
+        }
+    }
+
+    private fun buildNativeInitCandidates(
+        module: Module,
+        nativeLibraryDir: File?,
+        fileName: String,
+    ): List<String> {
+        val candidates = LinkedHashSet<String>()
+        if (nativeLibraryDir != null) {
+            candidates.add(File(nativeLibraryDir, fileName).absolutePath)
+        }
+        val abis = if (Process.is64Bit()) Build.SUPPORTED_64_BIT_ABIS else Build.SUPPORTED_32_BIT_ABIS
+        for (abi in abis) {
+            candidates.add("${module.apkPath}!/lib/$abi/$fileName")
+            val normalizedAbi = abi.lowercase()
+            if (normalizedAbi != abi) {
+                candidates.add("${module.apkPath}!/lib/$normalizedAbi/$fileName")
+            }
+        }
+        return candidates.toList()
+    }
+
+    private fun nativeLibraryFileNames(libraryName: String): List<String> {
+        val names = LinkedHashSet<String>()
+        names.add(libraryName)
+        if (!libraryName.startsWith("lib") || !libraryName.endsWith(".so")) {
+            names.add(System.mapLibraryName(libraryName))
+        }
+        return names.toList()
     }
 }
