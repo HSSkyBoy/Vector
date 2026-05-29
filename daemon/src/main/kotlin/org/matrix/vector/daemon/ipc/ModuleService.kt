@@ -7,6 +7,8 @@ import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
 import android.util.Log
+import io.github.libxposed.service.HookedProcess
+import io.github.libxposed.service.IHotReloadCallback
 import io.github.libxposed.service.IXposedScopeCallback
 import io.github.libxposed.service.IXposedService
 import java.io.Serializable
@@ -110,6 +112,9 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
   override fun getFrameworkProperties(): Long {
     ensureModule()
     var prop = IXposedService.PROP_CAP_SYSTEM or IXposedService.PROP_CAP_REMOTE
+    if (loadedModule.file.moduleClassNames.size == 1) {
+      prop = prop or IXposedService.PROP_RT_HOT_RELOAD
+    }
     if (ConfigCache.state.isDexObfuscateEnabled)
         prop = prop or IXposedService.PROP_RT_API_PROTECTION
     return prop
@@ -138,6 +143,37 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
       runCatching { ModuleDatabase.removeModuleScope(loadedModule.packageName, pkg, userId) }
           .onFailure { Log.e(TAG, "Error removing scope for $pkg", it) }
     }
+  }
+
+  override fun getRunningTargets(): List<HookedProcess> {
+    ensureModule()
+    return ApplicationService.getRunningTargets(loadedModule)
+  }
+
+  override fun hotReloadModule(
+      targetId: Long,
+      data: Bundle?,
+      callback: IHotReloadCallback?
+  ) {
+    ensureModule()
+    runCatching {
+          if (loadedModule.file.moduleClassNames.size != 1) {
+            throw SecurityException("Hot reload requires exactly one Java entry class")
+          }
+          val latest =
+              ConfigCache.getModuleByPackage(loadedModule.packageName)
+                  ?: throw SecurityException("Module ${loadedModule.packageName} is not enabled")
+          ApplicationService.hotReloadTarget(targetId, latest, data)
+          callback?.onHotReloadResult(IXposedService.HOT_RELOAD_SUCCESS, null)
+        }
+        .onFailure { throwable ->
+          val status =
+              when (throwable) {
+                is IllegalStateException -> IXposedService.HOT_RELOAD_IN_PROGRESS
+                else -> IXposedService.HOT_RELOAD_FAILED
+              }
+          callback?.onHotReloadResult(status, throwable.message)
+        }
   }
 
   override fun requestRemotePreferences(group: String): Bundle {
