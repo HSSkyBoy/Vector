@@ -36,6 +36,10 @@ Context::PreloadedDex::~PreloadedDex() {
 void Context::InitArtHooker(JNIEnv *env, const lsplant::InitInfo &initInfo) {
     if (!lsplant::Init(env, initInfo)) {
         LOGE("Failed to initialize LSPlant hooking framework.");
+        return;
+    }
+    if (!lsplant::DisableProfileSaver()) {
+        LOGW("Failed to install LSPlant profile saver compatibility hooks.");
     }
 }
 
