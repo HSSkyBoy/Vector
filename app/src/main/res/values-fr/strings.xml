@@ -200,6 +200,9 @@ JingMatrix</string>
     <string name="settings_enable_status_notification">Notification d\'état</string>
     <string name="settings_enable_status_notification_summary">Afficher une notification qui peut ouvrir le gestionnaire de parasites</string>
     <string name="settings_update_channel">Canal de mise à jour</string>
+    <string name="settings_repo_source">Source du dépôt</string>
+    <string name="repo_source_origin">Par défaut</string>
+    <string name="repo_source_backup">Secours</string>
     <string name="update_channel_stable">Stable</string>
     <string name="update_channel_bate">Bêta</string>
     <string name="update_channel_nightly">Alpha</string>

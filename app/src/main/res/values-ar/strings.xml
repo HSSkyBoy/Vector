@@ -202,6 +202,9 @@
     <string name="settings_enable_status_notification">إشعارات الحالة</string>
     <string name="settings_enable_status_notification_summary">إظهار إشعار يمكنه فتح مدير الطفيليات</string>
     <string name="settings_update_channel">قناة التحديث</string>
+    <string name="settings_repo_source">مصدر المستودع</string>
+    <string name="repo_source_origin">الافتراضي</string>
+    <string name="repo_source_backup">احتياطي</string>
     <string name="update_channel_stable">مستقر</string>
     <string name="update_channel_bate">تجريبي</string>
     <string name="update_channel_nightly">البناء الليلي</string>

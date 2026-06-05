@@ -196,6 +196,9 @@
     <string name="settings_enable_status_notification">狀態通知</string>
     <string name="settings_enable_status_notification_summary">顯示通知以便開啟寄生管理員</string>
     <string name="settings_update_channel">更新頻道</string>
+    <string name="settings_repo_source">倉庫來源</string>
+    <string name="repo_source_origin">預設</string>
+    <string name="repo_source_backup">備援</string>
     <string name="update_channel_stable">穩定版</string>
     <string name="update_channel_bate">測試版</string>
     <string name="update_channel_nightly">每夜構建</string>

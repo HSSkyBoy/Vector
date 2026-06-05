@@ -202,6 +202,9 @@
     <string name="settings_enable_status_notification">Уведомление о состоянии</string>
     <string name="settings_enable_status_notification_summary">Показывать уведомление, через которое можно открыть parasitic-менеджер (т. е. LSPosed в скрытом режиме)</string>
     <string name="settings_update_channel">Канал обновлений</string>
+    <string name="settings_repo_source">Источник репозитория</string>
+    <string name="repo_source_origin">По умолчанию</string>
+    <string name="repo_source_backup">Резервный</string>
     <string name="update_channel_stable">Стабильные версии</string>
     <string name="update_channel_bate">Бета-версии</string>
     <string name="update_channel_nightly">Еженочные версии</string>

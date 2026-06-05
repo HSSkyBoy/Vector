@@ -198,6 +198,9 @@
     <string name="settings_enable_status_notification">Notificación de estado</string>
     <string name="settings_enable_status_notification_summary">Mostrar una notificación que puede abrir el gestor de parásitos</string>
     <string name="settings_update_channel">Actualizar canal</string>
+    <string name="settings_repo_source">Fuente del repositorio</string>
+    <string name="repo_source_origin">Predeterminado</string>
+    <string name="repo_source_backup">Respaldo</string>
     <string name="update_channel_stable">Estable</string>
     <string name="update_channel_bate">Beta</string>
     <string name="update_channel_nightly">Construcción nocturna</string>
