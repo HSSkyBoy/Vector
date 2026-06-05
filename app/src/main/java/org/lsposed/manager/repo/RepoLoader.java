@@ -77,9 +77,7 @@ public class RepoLoader {
     private final Set<RepoListener> listeners = ConcurrentHashMap.newKeySet();
     private boolean repoLoaded = false;
     private static final String originRepoUrl = "https://modules.lsposed.org/";
-    private static final String backupRepoUrl = "https://modules-blogcdn.lsposed.org/";
-
-    private static final String secondBackupRepoUrl = "https://modules-cloudflare.lsposed.org/";
+    private static final String backupRepoUrl = "https://backup.modules.lsposed.org/";
     private static String repoUrl = originRepoUrl;
     private final Resources resources = App.getInstance().getResources();
     private final String[] channels = resources.getStringArray(R.array.update_channel_values);
@@ -124,9 +122,6 @@ public class RepoLoader {
             }
             if (repoUrl.equals(originRepoUrl)) {
                 repoUrl = backupRepoUrl;
-                loadRemoteData();
-            } else if (repoUrl.equals(backupRepoUrl)) {
-                repoUrl = secondBackupRepoUrl;
                 loadRemoteData();
             }
         }
@@ -254,9 +249,6 @@ public class RepoLoader {
                 Log.e(App.TAG, call.request().url() + e.getMessage());
                 if (repoUrl.equals(originRepoUrl)) {
                     repoUrl = backupRepoUrl;
-                    loadRemoteReleases(packageName);
-                } else if (repoUrl.equals(backupRepoUrl)) {
-                    repoUrl = secondBackupRepoUrl;
                     loadRemoteReleases(packageName);
                 } else {
                     for (RepoListener listener : listeners) {
