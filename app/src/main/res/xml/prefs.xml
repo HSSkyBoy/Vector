@@ -116,6 +116,14 @@
             android:key="update_channel"
             android:summary="%s"
             android:title="@string/settings_update_channel" />
+        <rikka.preference.SimpleMenuPreference
+            android:defaultValue="SOURCE_ORIGIN"
+            android:entries="@array/repo_source_texts"
+            android:entryValues="@array/repo_source_values"
+            android:icon="@drawable/ic_outline_language_24"
+            android:key="repo_source"
+            android:summary="%s"
+            android:title="@string/settings_repo_source" />
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/settings_backup_and_restore">

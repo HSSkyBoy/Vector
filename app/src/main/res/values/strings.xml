@@ -198,6 +198,9 @@
     <string name="settings_enable_status_notification">Status Notification</string>
     <string name="settings_enable_status_notification_summary">Show a notification that can open parasitic manager</string>
     <string name="settings_update_channel">Update channel</string>
+    <string name="settings_repo_source">Repository source</string>
+    <string name="repo_source_origin">Default</string>
+    <string name="repo_source_backup">Backup</string>
     <string name="update_channel_stable">Stable</string>
     <string name="update_channel_bate">Beta</string>
     <string name="update_channel_nightly">Nightly build</string>

@@ -88,4 +88,14 @@
         <item>CHANNEL_NIGHTLY</item>
     </string-array>
 
+    <string-array name="repo_source_texts" translatable="false">
+        <item>@string/repo_source_origin</item>
+        <item>@string/repo_source_backup</item>
+    </string-array>
+
+    <string-array name="repo_source_values" translatable="false">
+        <item>SOURCE_ORIGIN</item>
+        <item>SOURCE_BACKUP</item>
+    </string-array>
+
 </resources>

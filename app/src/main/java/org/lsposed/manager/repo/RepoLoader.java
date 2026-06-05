@@ -82,6 +82,11 @@ public class RepoLoader {
     private final Resources resources = App.getInstance().getResources();
     private final String[] channels = resources.getStringArray(R.array.update_channel_values);
 
+    private String getPreferredRepoUrl() {
+        var source = App.getPreferences().getString("repo_source", "SOURCE_ORIGIN");
+        return "SOURCE_BACKUP".equals(source) ? backupRepoUrl : originRepoUrl;
+    }
+
     public boolean isRepoLoaded() {
         return repoLoaded;
     }
@@ -95,6 +100,11 @@ public class RepoLoader {
     }
 
     synchronized public void loadRemoteData() {
+        loadRemoteData(getPreferredRepoUrl(), true);
+    }
+
+    synchronized private void loadRemoteData(String url, boolean allowFallback) {
+        repoUrl = url;
         repoLoaded = false;
         try {
             try (var response = App.getOkHttpClient().newCall(new Request.Builder().url(repoUrl + "modules.json").build()).execute()) {
@@ -120,9 +130,8 @@ public class RepoLoader {
             for (RepoListener listener : listeners) {
                 listener.onThrowable(e);
             }
-            if (repoUrl.equals(originRepoUrl)) {
-                repoUrl = backupRepoUrl;
-                loadRemoteData();
+            if (allowFallback) {
+                loadRemoteData(url.equals(originRepoUrl) ? backupRepoUrl : originRepoUrl, false);
             }
         }
     }
@@ -243,13 +252,18 @@ public class RepoLoader {
     }
 
     public void loadRemoteReleases(String packageName) {
-        App.getOkHttpClient().newCall(new Request.Builder().url(String.format(repoUrl + "module/%s.json", packageName)).build()).enqueue(new Callback() {
+        loadRemoteReleases(packageName, repoUrl, true);
+    }
+
+    private void loadRemoteReleases(String packageName, String url, boolean allowFallback) {
+        App.getOkHttpClient().newCall(new Request.Builder().url(String.format(url + "module/%s.json", packageName)).build()).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(App.TAG, call.request().url() + e.getMessage());
-                if (repoUrl.equals(originRepoUrl)) {
-                    repoUrl = backupRepoUrl;
-                    loadRemoteReleases(packageName);
+                if (allowFallback) {
+                    String nextUrl = url.equals(originRepoUrl) ? backupRepoUrl : originRepoUrl;
+                    repoUrl = nextUrl;
+                    loadRemoteReleases(packageName, nextUrl, false);
                 } else {
                     for (RepoListener listener : listeners) {
                         listener.onThrowable(e);
