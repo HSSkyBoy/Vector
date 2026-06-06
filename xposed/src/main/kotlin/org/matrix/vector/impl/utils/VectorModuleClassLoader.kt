@@ -108,6 +108,10 @@ class VectorModuleClassLoader : ByteBufferDexClassLoader {
         return null
     }
 
+    override fun getLdLibraryPath(): String {
+        return nativeLibraryDirs.joinToString(File.pathSeparator) { it.path }
+    }
+
     override fun findResource(name: String): URL? {
         return try {
             val urlHandler = VectorURLStreamHandler(apkPath)
@@ -123,6 +127,20 @@ class VectorModuleClassLoader : ByteBufferDexClassLoader {
         return Collections.enumeration(result)
     }
 
+    override fun getResource(name: String): URL? {
+        Any::class.java.classLoader?.getResource(name)?.let { return it }
+        findResource(name)?.let { return it }
+        return parent?.getResource(name)
+    }
+
+    override fun getResources(name: String): Enumeration<URL> {
+        val resources = mutableListOf<URL>()
+        appendResources(resources, Any::class.java.classLoader?.getResources(name))
+        appendResources(resources, findResources(name))
+        appendResources(resources, parent?.getResources(name))
+        return Collections.enumeration(resources)
+    }
+
     override fun toString(): String {
         return "VectorModuleClassLoader[module=$apkPath, ${super.toString()}]"
     }
@@ -135,6 +153,13 @@ class VectorModuleClassLoader : ByteBufferDexClassLoader {
         private fun splitPaths(searchPath: String?): List<File> {
             if (searchPath.isNullOrEmpty()) return emptyList()
             return searchPath.split(File.pathSeparator).map { File(it) }
+        }
+
+        private fun appendResources(resources: MutableList<URL>, entries: Enumeration<URL>?) {
+            if (entries == null) return
+            while (entries.hasMoreElements()) {
+                resources.add(entries.nextElement())
+            }
         }
 
         /**
