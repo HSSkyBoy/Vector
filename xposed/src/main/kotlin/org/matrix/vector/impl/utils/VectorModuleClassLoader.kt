@@ -148,11 +148,24 @@ class VectorModuleClassLoader : ByteBufferDexClassLoader {
     companion object {
         private const val TAG = "VectorModuleClassLoader"
         private const val ZIP_SEPARATOR = "!/"
-        private val SYSTEM_NATIVE_LIBRARY_DIRS = splitPaths(System.getProperty("java.library.path"))
+        private val SYSTEM_NATIVE_LIBRARY_DIRS =
+            filterSystemNativeLibraryDirs(System.getProperty("java.library.path"))
 
         private fun splitPaths(searchPath: String?): List<File> {
             if (searchPath.isNullOrEmpty()) return emptyList()
             return searchPath.split(File.pathSeparator).map { File(it) }
+        }
+
+        private fun filterSystemNativeLibraryDirs(searchPath: String?): List<File> {
+            return splitPaths(searchPath).filter { file ->
+                val path = file.path
+                path.startsWith("/apex/") ||
+                    path.startsWith("/system/") ||
+                    path.startsWith("/system_ext/") ||
+                    path.startsWith("/product/") ||
+                    path.startsWith("/vendor/") ||
+                    path.startsWith("/odm/")
+            }
         }
 
         private fun appendResources(resources: MutableList<URL>, entries: Enumeration<URL>?) {

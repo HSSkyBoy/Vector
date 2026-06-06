@@ -167,7 +167,8 @@ object VectorModuleManager {
         return runCatching {
                 val apkFile = File(module.apkPath)
                 val parent = apkFile.parentFile ?: return null
-                val moduleRoot = File(parent, "native/${module.packageName.replace('.', '_')}")
+                val moduleRoot =
+                    File(resolveNativeCacheRoot(parent), module.packageName.replace('.', '_'))
                 val targetDir = File(moduleRoot, "${apkFile.lastModified()}-${apkFile.length()}")
                 if (
                     targetDir.isDirectory &&
@@ -218,6 +219,19 @@ object VectorModuleManager {
             }
             .onFailure { Log.e(TAG, "Failed to prepare native dir for ${module.packageName}", it) }
             .getOrNull()
+    }
+
+    private fun resolveNativeCacheRoot(moduleApkParent: File): File {
+        val codeCacheDir = moduleApkParent.parentFile?.parentFile?.parentFile
+        return if (
+            moduleApkParent.parentFile?.name == "mods" &&
+                moduleApkParent.parentFile?.parentFile?.name == "code_cache" &&
+                codeCacheDir?.name == "cache"
+        ) {
+            File(codeCacheDir, "native")
+        } else {
+            File(moduleApkParent, "native")
+        }
     }
 
     private fun buildLibrarySearchPath(module: Module, nativeLibraryDir: File?): String {
