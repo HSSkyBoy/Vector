@@ -91,7 +91,7 @@ object VectorModuleManager {
                         Log.v(TAG, "Loading class $moduleClass")
 
                         if (!XposedModule::class.java.isAssignableFrom(moduleClass)) {
-                            Log.e(TAG, "Class does not extend XposedModule, skipping.")
+                            Log.e(TAG, "Class $moduleClass does not extend XposedModule, skipping.")
                             return@runCatching
                         }
 

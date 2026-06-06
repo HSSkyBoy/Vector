@@ -1,14 +1,18 @@
 package org.matrix.vector.impl
 
 import android.content.SharedPreferences
+import android.os.RemoteException
 import android.content.pm.ApplicationInfo
 import android.os.ParcelFileDescriptor
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModuleInterface.*
+import io.github.libxposed.api.error.XposedFrameworkError
 import java.io.FileNotFoundException
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.lang.reflect.Proxy
 import java.util.concurrent.ConcurrentHashMap
 import org.lsposed.lspd.service.ILSPInjectedModuleService
 import org.lsposed.lspd.util.Utils.Log
@@ -36,7 +40,11 @@ class VectorContext(
     override fun getFrameworkVersionCode(): Long = BuildConfig.VERSION_CODE
 
     override fun getFrameworkProperties(): Long {
-        return service.getFrameworkProperties()
+        return try {
+            service.getFrameworkProperties()
+        } catch (_: RemoteException) {
+            0L
+        }
     }
 
     override fun hook(origin: Executable): XposedInterface.HookBuilder {
@@ -51,6 +59,12 @@ class VectorContext(
     }
 
     override fun deoptimize(executable: Executable): Boolean {
+        require(!Modifier.isAbstract(executable.modifiers)) {
+            "Cannot deoptimize abstract methods: $executable"
+        }
+        require(!Proxy.isProxyClass(executable.declaringClass)) {
+            "Cannot deoptimize methods from proxy class: $executable"
+        }
         return HookBridge.deoptimizeMethod(executable)
     }
 
@@ -69,12 +83,20 @@ class VectorContext(
     }
 
     override fun listRemoteFiles(): Array<String> {
-        return service.remoteFileList
+        return try {
+            service.remoteFileList
+        } catch (e: RemoteException) {
+            log(android.util.Log.ERROR, "VectorContext", "Failed to list remote files", e)
+            throw XposedFrameworkError(e)
+        }
     }
 
     override fun openRemoteFile(name: String): ParcelFileDescriptor {
-        return service.openRemoteFile(name)
-            ?: throw FileNotFoundException("Cannot open remote file: $name")
+        return try {
+            service.openRemoteFile(name) ?: throw FileNotFoundException("Cannot open remote file: $name")
+        } catch (e: RemoteException) {
+            throw FileNotFoundException(e.message)
+        }
     }
 
     override fun log(priority: Int, tag: String?, msg: String) {
