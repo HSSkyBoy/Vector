@@ -118,9 +118,25 @@ class VectorModuleClassLoader : ByteBufferDexClassLoader {
     }
 
     override fun findResources(name: String): Enumeration<URL> {
-        val url = findResource(name)
-        val result = if (url != null) listOf(url) else emptyList()
+        val result = ArrayList<URL>()
+        appendResources(result, super.findResources(name))
+        findResource(name)?.let(result::add)
         return Collections.enumeration(result)
+    }
+
+    override fun getResource(name: String): URL? {
+        return findResource(name) ?: super.getResource(name)
+    }
+
+    override fun getResources(name: String): Enumeration<URL> {
+        val resources = ArrayList<URL>()
+        appendResources(resources, findResources(name))
+        appendResources(resources, parent?.getResources(name))
+        return Collections.enumeration(resources)
+    }
+
+    fun getLdLibraryPath(): String {
+        return nativeLibraryDirs.joinToString(File.pathSeparator) { it.path }
     }
 
     override fun toString(): String {
@@ -131,6 +147,13 @@ class VectorModuleClassLoader : ByteBufferDexClassLoader {
         private const val TAG = "VectorModuleClassLoader"
         private const val ZIP_SEPARATOR = "!/"
         private val SYSTEM_NATIVE_LIBRARY_DIRS = splitPaths(System.getProperty("java.library.path"))
+
+        private fun appendResources(target: MutableList<URL>, resources: Enumeration<URL>?) {
+            if (resources == null) return
+            while (resources.hasMoreElements()) {
+                resources.nextElement()?.let(target::add)
+            }
+        }
 
         private fun splitPaths(searchPath: String?): List<File> {
             if (searchPath.isNullOrEmpty()) return emptyList()

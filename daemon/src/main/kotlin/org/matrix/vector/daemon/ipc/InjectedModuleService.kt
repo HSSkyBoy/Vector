@@ -53,7 +53,9 @@ class InjectedModuleService(private val packageName: String) : ILSPInjectedModul
     val userId = Binder.getCallingUid() / PER_USER_RANGE
     return runCatching {
           val dir = FileSystem.resolveModuleDir(packageName, "files", userId, -1)
-          ParcelFileDescriptor.open(dir.resolve(path).toFile(), ParcelFileDescriptor.MODE_READ_ONLY)
+          ParcelFileDescriptor.open(
+              dir.resolve(path).toFile(),
+              ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_READ_WRITE)
         }
         .getOrElse { throw RemoteException(it.message) }
   }

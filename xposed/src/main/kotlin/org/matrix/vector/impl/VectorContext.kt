@@ -10,6 +10,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
+import android.os.RemoteException
 import org.lsposed.lspd.service.ILSPInjectedModuleService
 import org.lsposed.lspd.util.Utils.Log
 import org.matrix.vector.impl.hooks.VectorCtorInvoker
@@ -36,7 +37,11 @@ class VectorContext(
     override fun getFrameworkVersionCode(): Long = BuildConfig.VERSION_CODE
 
     override fun getFrameworkProperties(): Long {
-        return service.getFrameworkProperties()
+        return try {
+            service.getFrameworkProperties()
+        } catch (_: RemoteException) {
+            0L
+        }
     }
 
     override fun hook(origin: Executable): XposedInterface.HookBuilder {
@@ -69,12 +74,19 @@ class VectorContext(
     }
 
     override fun listRemoteFiles(): Array<String> {
-        return service.remoteFileList
+        return try {
+            service.remoteFileList
+        } catch (e: RemoteException) {
+            throw XposedFrameworkError(e)
+        }
     }
 
     override fun openRemoteFile(name: String): ParcelFileDescriptor {
-        return service.openRemoteFile(name)
-            ?: throw FileNotFoundException("Cannot open remote file: $name")
+        return try {
+            service.openRemoteFile(name) ?: throw FileNotFoundException("Cannot open remote file: $name")
+        } catch (e: RemoteException) {
+            throw FileNotFoundException(e.message)
+        }
     }
 
     override fun log(priority: Int, tag: String?, msg: String) {
