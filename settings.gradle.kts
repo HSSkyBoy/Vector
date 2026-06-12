@@ -29,5 +29,4 @@ include(
     ":services:manager-service",
     ":services:daemon-service",
     ":xposed",
-    ":zygisk",
 )

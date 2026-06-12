@@ -151,7 +151,6 @@ tasks.register<KtfmtFormatTask>("format") {
     )
     dependsOn(":daemon:ktfmtFormat")
     dependsOn(":xposed:ktfmtFormat")
-    dependsOn(":zygisk:ktfmtFormat")
 }
 
 ktfmt { kotlinLangStyle() }
