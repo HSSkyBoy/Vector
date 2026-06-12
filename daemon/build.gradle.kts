@@ -1,5 +1,3 @@
-import com.android.build.api.dsl.ApplicationExtension
-import com.android.ide.common.signing.KeystoreHelper
 import java.io.PrintStream
 import java.util.UUID
 
@@ -54,29 +52,10 @@ android.applicationVariants.all {
   val outSrcDir = layout.buildDirectory.dir("generated/source/signInfo/${variantLowered}").get()
   val signInfoTask =
       tasks.register("generate${variantCapped}SignInfo") {
-        dependsOn(":app:validateSigning${variantCapped}")
-        val sign =
-            rootProject
-                .project(":app")
-                .extensions
-                .getByType(ApplicationExtension::class.java)
-                .buildTypes
-                .named(variantLowered)
-                .get()
-                .signingConfig
         val outSrc = file("$outSrcDir/org/matrix/vector/daemon/utils/SignInfo.kt")
         outputs.file(outSrc)
         doLast {
           outSrc.parentFile.mkdirs()
-          val certificateInfo =
-              KeystoreHelper.getCertificateInfo(
-                  sign?.storeType,
-                  sign?.storeFile,
-                  sign?.storePassword,
-                  sign?.keyPassword,
-                  sign?.keyAlias,
-              )
-
           PrintStream(outSrc)
               .print(
                   """
@@ -84,9 +63,7 @@ android.applicationVariants.all {
                 |
                 |object SignInfo {
                 |    @JvmField
-                |    val CERTIFICATE = byteArrayOf(${
-                    certificateInfo.certificate.encoded.joinToString(",")
-                })
+                |    val CERTIFICATE = byteArrayOf()
                 |}"""
                       .trimMargin())
         }
