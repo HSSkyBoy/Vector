@@ -45,6 +45,13 @@ public interface IPackageManager extends IInterface {
     ParceledListSlice<ApplicationInfo> getInstalledApplications(long flags, int userId)
             throws RemoteException;
 
+    ParceledListSlice<PackageInfo> getInstalledPackages(int flags, int userId)
+            throws RemoteException;
+
+    @RequiresApi(33)
+    ParceledListSlice<PackageInfo> getInstalledPackages(long flags, int userId)
+            throws RemoteException;
+
     int getUidForSharedUser(String sharedUserName)
             throws RemoteException;
 
