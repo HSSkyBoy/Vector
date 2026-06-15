@@ -70,10 +70,9 @@ If you encounter issues or wish to help improve the project, please refer to the
 > [!IMPORTANT]
 > Bug reports are only accepted if they are based on the **latest debug build**.
 >
-> *Notice for Chinese speakers:*
+> *致中文用户：*
 >
-> 为了提高沟通效率，本项目仅接受英文 Issue。请使用 [DeepL](https://www.deepl.com/zh/translator) 或其他翻译工具提交您的反馈。
-
+> 为保障问题沟通与处理效率，本项目仅受理英文 Issue。请使用 [DeepL](https://www.deepl.com/zh/translator) 或其他翻译工具如各种AI将反馈内容译为英文后提交。
 ---
 
 ### Developer Resources
