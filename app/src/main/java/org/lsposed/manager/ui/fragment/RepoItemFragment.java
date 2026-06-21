@@ -1,22 +1,3 @@
-/*
- * <!--This file is part of LSPosed.
- *
- * LSPosed is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * LSPosed is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with LSPosed.  If not, see <https://www.gnu.org/licenses/>.
- *
- * Copyright (C) 2021 LSPosed Contributors-->
- */
-
 package org.lsposed.manager.ui.fragment;
 
 import android.annotation.SuppressLint;
@@ -93,6 +74,8 @@ import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -109,6 +92,8 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
     OnlineModule module;
     private ReleaseAdapter releaseAdapter;
     private InformationAdapter informationAdapter;
+    private boolean remoteModuleLoadRequested = false;
+    private boolean releaseLoadRequestedByUser = false;
 
     @Nullable
     @Override
@@ -122,8 +107,8 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         binding.clickView.setTooltipText(moduleName);
         binding.toolbar.setSubtitle(modulePackageName);
         binding.viewPager.setAdapter(new PagerAdapter(this));
-        int[] titles = new int[]{R.string.module_readme, R.string.module_releases, R.string.module_information};
 
+        int[] titles = {R.string.module_readme, R.string.module_releases, R.string.module_information};
         var isAnimationEnabled = AccessibilityUtils.isAnimationEnabled(requireContext().getContentResolver());
         new TabLayoutMediator(
             binding.tabLayout,
@@ -147,6 +132,7 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         releaseAdapter = new ReleaseAdapter();
         informationAdapter = new InformationAdapter();
         RepoLoader.getInstance().addListener(this);
+        loadRemoteModuleIfReadmeMissing();
         return binding.getRoot();
     }
 
@@ -157,10 +143,8 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
 
         String modulePackageName = getArguments() == null ? null : getArguments().getString("modulePackageName");
         module = RepoLoader.getInstance().getOnlineModule(modulePackageName);
-        if (module == null) {
-            if (!safeNavigate(R.id.action_repo_item_fragment_to_repo_fragment)) {
-                safeNavigate(R.id.repo_nav);
-            }
+        if (module == null && !safeNavigate(R.id.action_repo_item_fragment_to_repo_fragment)) {
+            safeNavigate(R.id.repo_nav);
         }
     }
 
@@ -177,21 +161,12 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
             setting.setGeolocationEnabled(false);
             setting.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
             setting.setTextZoom(80);
-            String body;
-            String direction;
-            if (getResources().getConfiguration().getLayoutDirection() == View.LAYOUT_DIRECTION_RTL) {
-                direction = "rtl";
-            } else {
-                direction = "ltr";
-            }
-            if (text == null) {
-                text = "<center>" + App.getInstance().getString(R.string.list_empty) + "</center>";
-            }
-            if (ResourceUtils.isNightMode(getResources().getConfiguration())) {
-                body = App.HTML_TEMPLATE_DARK.get().replace("@dir@", direction).replace("@body@", text);
-            } else {
-                body = App.HTML_TEMPLATE.get().replace("@dir@", direction).replace("@body@", text);
-            }
+
+            String direction = getResources().getConfiguration().getLayoutDirection() == View.LAYOUT_DIRECTION_RTL ? "rtl" : "ltr";
+            String safeText = TextUtils.isEmpty(text) ? "<center>" + App.getInstance().getString(R.string.list_empty) + "</center>" : text;
+            String template = ResourceUtils.isNightMode(getResources().getConfiguration()) ? App.HTML_TEMPLATE_DARK.get() : App.HTML_TEMPLATE.get();
+            String body = template.replace("@dir@", direction).replace("@body@", safeText);
+
             view.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -213,41 +188,64 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
                     try {
                         Response reply = call.execute();
                         var header = reply.header("content-type", "image/*;charset=utf-8");
-                        String[] contentTypes = new String[0];
-                        if (header != null) {
-                            contentTypes = header.split(";\\s*");
-                        }
+                        String[] contentTypes = header != null ? header.split(";\\s*") : new String[0];
                         var mimeType = contentTypes.length > 0 ? contentTypes[0] : "image/*";
                         var charset = contentTypes.length > 1 ? contentTypes[1].split("=\\s*")[1] : "utf-8";
-                        var body = reply.body();
-                        if (body == null) return null;
-                        return new WebResourceResponse(
-                                mimeType,
-                                charset,
-                                body.byteStream()
-                        );
+                        var responseBody = reply.body();
+                        if (responseBody == null) return null;
+                        return new WebResourceResponse(mimeType, charset, responseBody.byteStream());
                     } catch (Throwable e) {
                         return new WebResourceResponse("text/html", "utf-8", new ByteArrayInputStream(Log.getStackTraceString(e).getBytes(StandardCharsets.UTF_8)));
                     }
                 }
             });
-            view.loadDataWithBaseURL("https://github.com", body, "text/html",
-                    StandardCharsets.UTF_8.name(), null);
+            view.loadDataWithBaseURL("https://github.com", body, "text/html", StandardCharsets.UTF_8.name(), null);
         } catch (Throwable e) {
             Log.e(App.TAG, "render readme", e);
         }
     }
 
-    @Override
-    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
+    @Nullable
+    private OnlineModule refreshModuleFromRepo() {
+        if (module == null || module.getName() == null) return module;
+        var updatedModule = RepoLoader.getInstance().getOnlineModule(module.getName());
+        if (updatedModule != null) {
+            module = updatedModule;
+        }
+        return module;
+    }
 
+    private boolean hasReadme(@Nullable OnlineModule mod) {
+        return mod != null && (!TextUtils.isEmpty(mod.getReadmeHTML()) || !TextUtils.isEmpty(mod.getReadme()));
+    }
+
+    private void loadRemoteModuleIfReadmeMissing() {
+        var currentModule = refreshModuleFromRepo();
+        if (currentModule == null || currentModule.getName() == null) return;
+        if (remoteModuleLoadRequested || currentModule.releasesLoaded || hasReadme(currentModule)) return;
+
+        remoteModuleLoadRequested = true;
+        RepoLoader.getInstance().loadRemoteReleases(currentModule.getName());
+    }
+
+    @Nullable
+    private String getModuleReadme() {
+        var currentModule = refreshModuleFromRepo();
+        if (currentModule == null) return null;
+        String readme = TextUtils.isEmpty(currentModule.getReadmeHTML()) ? currentModule.getReadme() : currentModule.getReadmeHTML();
+        if (TextUtils.isEmpty(readme)) {
+            loadRemoteModuleIfReadmeMissing();
+        }
+        return readme;
     }
 
     @Override
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {}
+
+    @Override
     public boolean onMenuItemSelected(@NonNull MenuItem item) {
-        int id = item.getItemId();
-        if (id == R.id.menu_open_in_browser) {
-            NavUtil.startURL(requireActivity(), "https://modules.lsposed.org/module/" + module.getName());
+        if (item.getItemId() == R.id.menu_open_in_browser) {
+            NavUtil.startURL(requireActivity(), "https://backup.modules.lsposed.org/module/" + module.getName());
             return true;
         }
         return false;
@@ -261,22 +259,29 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
     }
 
     @Override
-    public void onModuleReleasesLoaded(OnlineModule module) {
-        this.module = module;
+    public void onRepoLoaded() {
+        refreshModuleFromRepo();
+        loadRemoteModuleIfReadmeMissing();
+        if (releaseAdapter != null) runAsync(releaseAdapter::loadItems);
+    }
+
+    @Override
+    public void onModuleReleasesLoaded(OnlineModule mod) {
+        if (this.module == null || mod == null || !TextUtils.equals(this.module.getName(), mod.getName())) return;
+        this.module = mod;
+        if (releaseAdapter != null) runAsync(releaseAdapter::loadItems);
+        
         var repoLoader = RepoLoader.getInstance();
-        if (releaseAdapter != null) {
-            runAsync(releaseAdapter::loadItems);
-        }
-        if ((repoLoader.getReleases(module.getName()) != null ? repoLoader.getReleases(module.getName()).size() : 1) == 1) {
+        var releases = repoLoader.getReleases(mod.getName());
+        if (releaseLoadRequestedByUser && (releases != null ? releases.size() : 1) == 1) {
             showHint(R.string.module_release_no_more, true);
         }
+        releaseLoadRequestedByUser = false;
     }
 
     @Override
     public void onThrowable(Throwable t) {
-        if (releaseAdapter != null) {
-            runAsync(releaseAdapter::loadItems);
-        }
+        if (releaseAdapter != null) runAsync(releaseAdapter::loadItems);
         showHint(getString(R.string.repo_load_failed, t.getLocalizedMessage()), true);
     }
 
@@ -288,15 +293,9 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         private int sourceUrlRow = -1;
 
         public InformationAdapter() {
-            if (!TextUtils.isEmpty(module.getHomepageUrl())) {
-                homepageRow = rowCount++;
-            }
-            if (module.getCollaborators() != null && !module.getCollaborators().isEmpty()) {
-                collaboratorsRow = rowCount++;
-            }
-            if (!TextUtils.isEmpty(module.getSourceUrl())) {
-                sourceUrlRow = rowCount++;
-            }
+            if (!TextUtils.isEmpty(module.getHomepageUrl())) homepageRow = rowCount++;
+            if (module.getCollaborators() != null && !module.getCollaborators().isEmpty()) collaboratorsRow = rowCount++;
+            if (!TextUtils.isEmpty(module.getSourceUrl())) sourceUrlRow = rowCount++;
         }
 
         @NonNull
@@ -317,42 +316,33 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
                 SpannableStringBuilder sb = new SpannableStringBuilder();
                 ListIterator<Collaborator> iterator = collaborators.listIterator();
                 while (iterator.hasNext()) {
-                    Collaborator collaborator = iterator.next();
-                    var collaboratorLogin = collaborator.getLogin();
-                    if (collaboratorLogin == null) continue;
-                    String name = collaborator.getName() == null ? collaboratorLogin : collaborator.getName();
+                    Collaborator collab = iterator.next();
+                    var login = collab.getLogin();
+                    if (login == null) continue;
+                    String name = collab.getName() == null ? login : collab.getName();
                     sb.append(name);
-                    CustomTabsURLSpan span = new CustomTabsURLSpan(requireActivity(), String.format("https://github.com/%s", collaborator.getLogin()));
+                    CustomTabsURLSpan span = new CustomTabsURLSpan(requireActivity(), "https://github.com/" + collab.getLogin());
                     sb.setSpan(span, sb.length() - name.length(), sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    if (iterator.hasNext()) {
-                        sb.append(", ");
-                    }
+                    if (iterator.hasNext()) sb.append(", ");
                 }
                 holder.description.setText(sb);
             } else if (position == sourceUrlRow) {
                 holder.title.setText(R.string.module_information_source_url);
                 holder.description.setText(module.getSourceUrl());
             }
+
             holder.itemView.setOnClickListener(v -> {
-                if (position == homepageRow) {
-                    NavUtil.startURL(requireActivity(), module.getHomepageUrl());
-                } else if (position == collaboratorsRow) {
+                if (position == homepageRow) NavUtil.startURL(requireActivity(), module.getHomepageUrl());
+                else if (position == collaboratorsRow) {
                     ClickableSpan span = holder.description.getCurrentSpan();
                     holder.description.clearCurrentSpan();
-
-                    if (span instanceof CustomTabsURLSpan) {
-                        span.onClick(v);
-                    }
-                } else if (position == sourceUrlRow) {
-                    NavUtil.startURL(requireActivity(), module.getSourceUrl());
-                }
+                    if (span instanceof CustomTabsURLSpan) span.onClick(v);
+                } else if (position == sourceUrlRow) NavUtil.startURL(requireActivity(), module.getSourceUrl());
             });
         }
 
         @Override
-        public int getItemCount() {
-            return rowCount;
-        }
+        public int getItemCount() { return rowCount; }
 
         class ViewHolder extends RecyclerView.ViewHolder {
             TextView title;
@@ -370,8 +360,7 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         @NonNull
         @Override
         public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-            var args = getArguments();
-            if (args == null) throw new IllegalArgumentException();
+            var args = Objects.requireNonNull(getArguments());
             return new BlurBehindDialogBuilder(requireActivity(), R.style.ThemeOverlay_MaterialAlertDialog_Centered_FullWidthButtons)
                     .setTitle(R.string.module_release_view_assets)
                     .setPositiveButton(android.R.string.cancel, null)
@@ -386,15 +375,15 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
 
             var displayNames = new CharSequence[assets.size()];
             for (int i = 0; i < assets.size(); i++) {
-                var sb = new SpannableStringBuilder(assets.get(i).getName());
-                var count = assets.get(i).getDownloadCount();
-                var countStr = activity.getResources().getQuantityString(R.plurals.module_release_assets_download_count, count, count);
-                var sizeStr = Formatter.formatShortFileSize(activity, assets.get(i).getSize());
+                var asset = assets.get(i);
+                var sb = new SpannableStringBuilder(asset.getName());
+                var countStr = activity.getResources().getQuantityString(R.plurals.module_release_assets_download_count, asset.getDownloadCount(), asset.getDownloadCount());
+                var sizeStr = Formatter.formatShortFileSize(activity, asset.getSize());
                 sb.append('\n').append(sizeStr).append('/').append(countStr);
-                final ForegroundColorSpan foregroundColorSpan = new ForegroundColorSpan(ResourceUtils.resolveColor(activity.getTheme(), android.R.attr.textColorSecondary));
-                final RelativeSizeSpan relativeSizeSpan = new RelativeSizeSpan(0.8f);
-                sb.setSpan(foregroundColorSpan, sb.length() - sizeStr.length() - countStr.length() - 1, sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                sb.setSpan(relativeSizeSpan, sb.length() - sizeStr.length() - countStr.length() - 1, sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                
+                int spanStart = sb.length() - sizeStr.length() - countStr.length() - 1;
+                sb.setSpan(new ForegroundColorSpan(ResourceUtils.resolveColor(activity.getTheme(), android.R.attr.textColorSecondary)), spanStart, sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                sb.setSpan(new RelativeSizeSpan(0.8f), spanStart, sb.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                 displayNames[i] = sb;
             }
             bundle.putCharSequenceArray("names", displayNames);
@@ -408,9 +397,7 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         private List<Release> items = new ArrayList<>();
         private final Resources resources = App.getInstance().getResources();
 
-        public ReleaseAdapter() {
-            runAsync(this::loadItems);
-        }
+        public ReleaseAdapter() { runAsync(this::loadItems); }
 
         @SuppressLint("NotifyDataSetChanged")
         public void loadItems() {
@@ -418,21 +405,30 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
             var channel = App.getPreferences().getString("update_channel", channels[0]);
             var releases = RepoLoader.getInstance().getReleases(module.getName());
             if (releases == null) releases = module.getReleases();
-            List<Release> tmpList;
-            if (channel.equals(channels[0])) {
-                tmpList = releases != null ? releases.parallelStream().filter(t -> {
-                    if (Boolean.TRUE.equals(t.getIsPrerelease())) return false;
-                    var name = t.getName() != null ? t.getName().toLowerCase(LocaleDelegate.getDefaultLocale()) : null;
-                    return !(name != null && name.startsWith("snapshot")) && !(name != null && name.startsWith("nightly"));
-                }).collect(Collectors.toList()) : null;
-            } else if (channel.equals(channels[1])) {
-                tmpList = releases != null ? releases.parallelStream().filter(t -> {
-                    var name = t.getName() != null ? t.getName().toLowerCase(LocaleDelegate.getDefaultLocale()) : null;
-                    return !(name != null && name.startsWith("snapshot")) && !(name != null && name.startsWith("nightly"));
-                }).collect(Collectors.toList()) : null;
-            } else tmpList = releases;
+
+            final Predicate<Release> isNotSnapshotOrNightly = t -> {
+                if (t.getName() == null) return true;
+                var name = t.getName().toLowerCase(LocaleDelegate.getDefaultLocale());
+                return !name.startsWith("snapshot") && !name.startsWith("nightly");
+            };
+
+            List<Release> tmpList = releases;
+            if (releases != null) {
+                if (channel.equals(channels[0])) {
+                    tmpList = releases.parallelStream()
+                            .filter(t -> !Boolean.TRUE.equals(t.getIsPrerelease()))
+                            .filter(isNotSnapshotOrNightly)
+                            .collect(Collectors.toList());
+                } else if (channel.equals(channels[1])) {
+                    tmpList = releases.parallelStream()
+                            .filter(isNotSnapshotOrNightly)
+                            .collect(Collectors.toList());
+                }
+            }
+
+            final List<Release> finalResult = tmpList != null ? tmpList : new ArrayList<>();
             runOnUiThread(() -> {
-                items = tmpList;
+                items = finalResult;
                 notifyDataSetChanged();
             });
         }
@@ -440,11 +436,9 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         @NonNull
         @Override
         public ReleaseAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            if (viewType == 0) {
-                return new ReleaseViewHolder(ItemRepoReleaseBinding.inflate(getLayoutInflater(), parent, false));
-            } else {
-                return new LoadmoreViewHolder(ItemRepoLoadmoreBinding.inflate(getLayoutInflater(), parent, false));
-            }
+            return viewType == 0 
+                ? new ReleaseViewHolder(ItemRepoReleaseBinding.inflate(getLayoutInflater(), parent, false))
+                : new LoadmoreViewHolder(ItemRepoLoadmoreBinding.inflate(getLayoutInflater(), parent, false));
         }
 
         @Override
@@ -456,6 +450,7 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
                     if (holder.progress.getVisibility() == View.GONE) {
                         holder.title.setVisibility(View.GONE);
                         holder.progress.show();
+                        releaseLoadRequestedByUser = true;
                         RepoLoader.getInstance().loadRemoteReleases(module.getName());
                     }
                 });
@@ -463,8 +458,7 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
                 Release release = items.get(position);
                 holder.title.setText(release.getName());
                 var instant = Instant.parse(release.getPublishedAt());
-                var formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
-                        .withLocale(App.getLocale()).withZone(ZoneId.systemDefault());
+                var formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(App.getLocale()).withZone(ZoneId.systemDefault());
                 holder.publishedTime.setText(String.format(getString(R.string.module_repo_published_time), formatter.format(instant)));
                 renderGithubMarkdown(holder.description, release.getDescriptionHTML());
                 holder.openInBrowser.setOnClickListener(v -> NavUtil.startURL(requireActivity(), release.getUrl()));
@@ -508,11 +502,8 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         class ReleaseViewHolder extends ReleaseAdapter.ViewHolder {
             public ReleaseViewHolder(ItemRepoReleaseBinding binding) {
                 super(binding.getRoot());
-                title = binding.title;
-                publishedTime = binding.publishedTime;
-                description = binding.description;
-                openInBrowser = binding.openInBrowser;
-                viewAssets = binding.viewAssets;
+                title = binding.title; publishedTime = binding.publishedTime; description = binding.description;
+                openInBrowser = binding.openInBrowser; viewAssets = binding.viewAssets;
             }
         }
 
@@ -568,9 +559,7 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         BorderView borderView;
 
         void attachListeners() {
-            var parent = getParentFragment();
-            if (parent instanceof RepoItemFragment) {
-                var repoItemFragment = (RepoItemFragment) parent;
+            if (getParentFragment() instanceof RepoItemFragment repoItemFragment) {
                 borderView.getBorderViewDelegate().setBorderVisibilityChangedListener((top, oldTop, bottom, oldBottom) -> repoItemFragment.binding.appBar.setLifted(!top));
                 repoItemFragment.binding.appBar.setLifted(!borderView.getBorderViewDelegate().isShowingTopBorder());
                 repoItemFragment.binding.toolbar.setOnClickListener(v -> {
@@ -611,30 +600,47 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
         }
     }
 
-    public static class ReadmeFragment extends BorderFragment {
+    public static class ReadmeFragment extends BorderFragment implements RepoLoader.RepoListener {
         ItemRepoReadmeBinding binding;
+
+        private void renderReadme() {
+            if (getParentFragment() instanceof RepoItemFragment repoItem && binding != null) {
+                repoItem.renderGithubMarkdown(binding.readme, repoItem.getModuleReadme());
+            }
+        }
 
         @Nullable
         @Override
         public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-            var parent = getParentFragment();
-            if (!(parent instanceof RepoItemFragment)) {
-                if (!safeNavigate(R.id.action_repo_item_fragment_to_repo_fragment)) {
-                    safeNavigate(R.id.repo_nav);
-                }
+            if (!(getParentFragment() instanceof RepoItemFragment)) {
+                if (!safeNavigate(R.id.action_repo_item_fragment_to_repo_fragment)) safeNavigate(R.id.repo_nav);
                 return null;
             }
-            var repoItemFragment = (RepoItemFragment) parent;
             binding = ItemRepoReadmeBinding.inflate(getLayoutInflater(), container, false);
-            repoItemFragment.renderGithubMarkdown(binding.readme, repoItemFragment.module.getReadmeHTML());
+            renderReadme();
             borderView = binding.scrollView;
+            RepoLoader.getInstance().addListener(this);
             return binding.getRoot();
         }
 
+        @Override public void onRepoLoaded() { if (binding != null) runOnUiThread(this::renderReadme); }
+
         @Override
-        void scrollToTop() {
-            binding.scrollView.fullScroll(ScrollView.FOCUS_UP);
+        public void onModuleReleasesLoaded(OnlineModule mod) {
+            if (binding != null && getParentFragment() instanceof RepoItemFragment repoItem) {
+                if (repoItem.module != null && TextUtils.equals(repoItem.module.getName(), mod.getName())) {
+                    runOnUiThread(this::renderReadme);
+                }
+            }
         }
+
+        @Override
+        public void onDestroyView() {
+            RepoLoader.getInstance().removeListener(this);
+            binding = null;
+            super.onDestroyView();
+        }
+        @Override void scrollToTop() { binding.scrollView.fullScroll(ScrollView.FOCUS_UP); }
     }
 
     public static class RecyclerviewFragment extends BorderFragment {
@@ -648,20 +654,16 @@ public class RepoItemFragment extends BaseFragment implements RepoLoader.RepoLis
 
         public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
             var arguments = getArguments();
-            var parent = getParentFragment();
-            if (arguments == null || !(parent instanceof RepoItemFragment)) {
-                if (!safeNavigate(R.id.action_repo_item_fragment_to_repo_fragment)) {
-                    safeNavigate(R.id.repo_nav);
-                }
+            if (arguments == null || !(getParentFragment() instanceof RepoItemFragment repoItemFragment)) {
+                if (!safeNavigate(R.id.action_repo_item_fragment_to_repo_fragment)) safeNavigate(R.id.repo_nav);
                 return null;
             }
-            var repoItemFragment = (RepoItemFragment) parent;
-            var position = arguments.getInt("position", 0);
-            if (position == 1)
-                adapter = repoItemFragment.releaseAdapter;
-            else if (position == 2)
-                adapter = repoItemFragment.informationAdapter;
-            else return null;
+            adapter = switch (arguments.getInt("position", 0)) {
+                case 1 -> repoItemFragment.releaseAdapter;
+                case 2 -> repoItemFragment.informationAdapter;
+                default -> null;
+            };
+            if (adapter == null) return null;
             binding = ItemRepoRecyclerviewBinding.inflate(getLayoutInflater(), container, false);
             binding.recyclerView.setAdapter(adapter);
             binding.recyclerView.setLayoutManager(new LinearLayoutManager(requireActivity()));

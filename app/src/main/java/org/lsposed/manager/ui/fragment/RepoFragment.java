@@ -1,22 +1,3 @@
-/*
- * <!--This file is part of LSPosed.
- *
- * LSPosed is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * LSPosed is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with LSPosed.  If not, see <https://www.gnu.org/licenses/>.
- *
- * Copyright (C) 2021 LSPosed Contributors-->
- */
-
 package org.lsposed.manager.ui.fragment;
 
 import android.annotation.SuppressLint;
@@ -69,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -129,7 +111,7 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
         binding.swipeRefreshLayout.setOnRefreshListener(adapter::fullRefresh);
         binding.swipeRefreshLayout.setProgressViewEndTarget(true, binding.swipeRefreshLayout.getProgressViewEndOffset());
         View.OnClickListener l = v -> {
-            if (searchView.isIconified()) {
+            if (searchView != null && searchView.isIconified()) {
                 binding.recyclerView.smoothScrollToPosition(0);
                 binding.appBar.setExpanded(true, true);
             }
@@ -143,33 +125,36 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
     }
 
     private void updateRepoSummary() {
-        final int[] count = new int[]{0};
-        HashSet<String> processedModules = new HashSet<>();
+        int upgradableCount = 0;
         var modules = moduleUtil.getModules();
         if (modules != null && repoLoader.isRepoLoaded()) {
-            modules.forEach((k, v) -> {
-                        if (!processedModules.contains(k.first)) {
-                            var ver = repoLoader.getModuleLatestVersion(k.first);
-                            if (ver != null && ver.upgradable(v.versionCode, v.versionName)) {
-                                ++count[0];
-                            }
-                            processedModules.add(k.first);
-                        }
+            Set<String> processedModules = new HashSet<>();
+            for (var entry : modules.entrySet()) {
+                String pkgName = entry.getKey().first;
+                if (processedModules.add(pkgName)) {
+                    var installedMod = entry.getValue();
+                    var latestVer = repoLoader.getModuleLatestVersion(pkgName);
+                    if (latestVer != null && latestVer.upgradable(installedMod.versionCode, installedMod.versionName)) {
+                        upgradableCount++;
                     }
-            );
+                }
+            }
         } else {
-            count[0] = -1;
+            upgradableCount = -1;
         }
+        final int finalCount = upgradableCount;
         runOnUiThread(() -> {
             if (binding != null) {
-                if (count[0] > 0) {
-                    binding.toolbar.setSubtitle(getResources().getQuantityString(R.plurals.module_repo_upgradable, count[0], count[0]));
-                } else if (count[0] == 0) {
-                    binding.toolbar.setSubtitle(getResources().getString(R.string.module_repo_up_to_date));
+                String subtitle;
+                if (finalCount > 0) {
+                    subtitle = getResources().getQuantityString(R.plurals.module_repo_upgradable, finalCount, finalCount);
+                } else if (finalCount == 0) {
+                    subtitle = getResources().getString(R.string.module_repo_up_to_date);
                 } else {
-                    binding.toolbar.setSubtitle(getResources().getString(R.string.loading));
+                    subtitle = getResources().getString(R.string.loading);
                 }
-                binding.toolbarLayout.setSubtitle(binding.toolbar.getSubtitle());
+                binding.toolbar.setSubtitle(subtitle);
+                binding.toolbarLayout.setSubtitle(subtitle);
             }
         });
     }
@@ -194,17 +179,14 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
             searchView.findViewById(androidx.appcompat.R.id.search_edit_frame).setLayoutDirection(View.LAYOUT_DIRECTION_INHERIT);
         }
         int sort = App.getPreferences().getInt("repo_sort", 0);
-        if (sort == 0) {
-            menu.findItem(R.id.item_sort_by_name).setChecked(true);
-        } else if (sort == 1) {
-            menu.findItem(R.id.item_sort_by_update_time).setChecked(true);
-        }
+        if (sort == 0) menu.findItem(R.id.item_sort_by_name).setChecked(true);
+        else if (sort == 1) menu.findItem(R.id.item_sort_by_update_time).setChecked(true);
+        
         menu.findItem(R.id.item_upgradable_first).setChecked(App.getPreferences().getBoolean("upgradable_first", true));
     }
 
     @Override
-    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
-    }
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {}
 
     @Override
     public void onDestroyView() {
@@ -213,14 +195,14 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
         mHandler.removeCallbacksAndMessages(null);
         repoLoader.removeListener(this);
         moduleUtil.removeListener(this);
-        adapter.unregisterAdapterDataObserver(observer);
+        if (adapter != null) adapter.unregisterAdapterDataObserver(observer);
         binding = null;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        adapter.refresh();
+        if (adapter != null) adapter.refresh();
         if (preLoadWebview) {
             mHandler.postDelayed(() -> new WebView(requireContext()), 500);
             preLoadWebview = false;
@@ -229,9 +211,7 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
 
     @Override
     public void onRepoLoaded() {
-        if (adapter != null) {
-            adapter.refresh();
-        }
+        if (adapter != null) adapter.refresh();
         updateRepoSummary();
     }
 
@@ -246,24 +226,24 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
         updateRepoSummary();
     }
 
+    @SuppressLint("NonConstantResourceId")
     @Override
     public boolean onMenuItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
+        var prefs = App.getPreferences().edit();
         if (itemId == R.id.item_sort_by_name) {
             item.setChecked(true);
-            App.getPreferences().edit().putInt("repo_sort", 0).apply();
-            adapter.refresh();
+            prefs.putInt("repo_sort", 0).apply();
         } else if (itemId == R.id.item_sort_by_update_time) {
             item.setChecked(true);
-            App.getPreferences().edit().putInt("repo_sort", 1).apply();
-            adapter.refresh();
+            prefs.putInt("repo_sort", 1).apply();
         } else if (itemId == R.id.item_upgradable_first) {
             item.setChecked(!item.isChecked());
-            App.getPreferences().edit().putBoolean("upgradable_first", item.isChecked()).apply();
-            adapter.refresh();
+            prefs.putBoolean("upgradable_first", item.isChecked()).apply();
         } else {
             return false;
         }
+        adapter.refresh();
         return true;
     }
 
@@ -286,12 +266,14 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
             return new ViewHolder(ItemOnlinemoduleBinding.inflate(getLayoutInflater(), parent, false));
         }
 
+        @Nullable
         RepoLoader.ModuleVersion getUpgradableVer(OnlineModule module) {
             ModuleUtil.InstalledModule installedModule = moduleUtil.getModule(module.getName());
             if (installedModule != null) {
                 var ver = repoLoader.getModuleLatestVersion(installedModule.packageName);
-                if (ver != null && ver.upgradable(installedModule.versionCode, installedModule.versionName))
+                if (ver != null && ver.upgradable(installedModule.versionCode, installedModule.versionName)) {
                     return ver;
+                }
             }
             return null;
         }
@@ -301,18 +283,17 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
             OnlineModule module = showList.get(position);
             holder.appName.setText(module.getDescription());
             holder.appPackageName.setText(module.getName());
-            Instant instant;
             channel = App.getPreferences().getString("update_channel", channels[0]);
             var latestReleaseTime = repoLoader.getLatestReleaseTime(module.getName(), channel);
-            instant = Instant.parse(latestReleaseTime != null ? latestReleaseTime : module.getLatestReleaseTime());
+            String timeStr = latestReleaseTime != null ? latestReleaseTime : module.getLatestReleaseTime();
+            
             var formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
                     .withLocale(App.getLocale()).withZone(ZoneId.systemDefault());
-            holder.publishedTime.setText(String.format(getString(R.string.module_repo_updated_time), formatter.format(instant)));
+            holder.publishedTime.setText(String.format(getString(R.string.module_repo_updated_time), formatter.format(Instant.parse(timeStr))));
+            
             SpannableStringBuilder sb = new SpannableStringBuilder();
-
-            String summary = module.getSummary();
-            if (summary != null) {
-                sb.append(summary);
+            if (module.getSummary() != null) {
+                sb.append(module.getSummary());
             }
             holder.appDescription.setVisibility(View.VISIBLE);
             holder.appDescription.setText(sb);
@@ -321,23 +302,26 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
             if (upgradableVer != null) {
                 String hint = getString(R.string.update_available, upgradableVer.versionName);
                 sb.append(hint);
-                final ForegroundColorSpan foregroundColorSpan = new ForegroundColorSpan(ResourceUtils.resolveColor(requireActivity().getTheme(), com.google.android.material.R.attr.colorPrimary));
+                int start = sb.length() - hint.length();
+                
+                sb.setSpan(new ForegroundColorSpan(ResourceUtils.resolveColor(requireActivity().getTheme(), com.google.android.material.R.attr.colorPrimary)), 
+                        start, sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    final TypefaceSpan typefaceSpan = new TypefaceSpan(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-                    sb.setSpan(typefaceSpan, sb.length() - hint.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+                    sb.setSpan(new TypefaceSpan(Typeface.create("sans-serif-medium", Typeface.NORMAL)), 
+                            start, sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
                 } else {
-                    final StyleSpan styleSpan = new StyleSpan(Typeface.BOLD);
-                    sb.setSpan(styleSpan, sb.length() - hint.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+                    sb.setSpan(new StyleSpan(Typeface.BOLD), 
+                            start, sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
                 }
-                sb.setSpan(foregroundColorSpan, sb.length() - hint.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
             } else if (moduleUtil.getModule(module.getName()) != null) {
                 String installed = getString(R.string.installed);
                 sb.append(installed);
-                final StyleSpan styleSpan = new StyleSpan(Typeface.ITALIC);
-                sb.setSpan(styleSpan, sb.length() - installed.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
-                final ForegroundColorSpan foregroundColorSpan = new ForegroundColorSpan(ResourceUtils.resolveColor(requireActivity().getTheme(), com.google.android.material.R.attr.colorSecondary));
-                sb.setSpan(foregroundColorSpan, sb.length() - installed.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+                int start = sb.length() - installed.length();
+                sb.setSpan(new StyleSpan(Typeface.ITALIC), start, sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+                sb.setSpan(new ForegroundColorSpan(ResourceUtils.resolveColor(requireActivity().getTheme(), com.google.android.material.R.attr.colorSecondary)), 
+                        start, sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
             }
+            
             if (sb.length() > 0) {
                 holder.hint.setVisibility(View.VISIBLE);
                 holder.hint.setText(sb);
@@ -346,7 +330,7 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
             }
 
             holder.itemView.setOnClickListener(v -> {
-                searchView.clearFocus();
+                if (searchView != null) searchView.clearFocus();
                 safeNavigate(RepoFragmentDirections.actionRepoFragmentToRepoItemFragment(module.getName()));
             });
             holder.itemView.setTooltipText(module.getDescription());
@@ -369,25 +353,36 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
         public void setData(Collection<OnlineModule> modules) {
             if (modules == null) return;
             setLoaded(null, false);
+            
             channel = App.getPreferences().getString("update_channel", channels[0]);
             int sort = App.getPreferences().getInt("repo_sort", 0);
             boolean upgradableFirst = App.getPreferences().getBoolean("upgradable_first", true);
             ConcurrentHashMap<String, Boolean> upgradable = new ConcurrentHashMap<>();
-            fullList = modules.parallelStream().filter((onlineModule -> !onlineModule.isHide() && !(repoLoader.getReleases(onlineModule.getName()) != null && repoLoader.getReleases(onlineModule.getName()).isEmpty())))
+            
+            fullList = modules.parallelStream()
+                    .filter(m -> !m.isHide())
+                    .filter(m -> {
+                        var releases = repoLoader.getReleases(m.getName());
+                        return releases == null || !releases.isEmpty();
+                    })
                     .sorted((a, b) -> {
                         if (upgradableFirst) {
-                            var aUpgrade = upgradable.computeIfAbsent(a.getName(), n -> getUpgradableVer(a) != null);
-                            var bUpgrade = upgradable.computeIfAbsent(b.getName(), n -> getUpgradableVer(b) != null);
+                            boolean aUpgrade = upgradable.computeIfAbsent(a.getName(), n -> getUpgradableVer(a) != null);
+                            boolean bUpgrade = upgradable.computeIfAbsent(b.getName(), n -> getUpgradableVer(b) != null);
                             if (aUpgrade && !bUpgrade) return -1;
-                            else if (!aUpgrade && bUpgrade) return 1;
+                            if (!aUpgrade && bUpgrade) return 1;
                         }
                         if (sort == 0) {
                             return labelComparator.compare(a.getDescription(), b.getDescription());
                         } else {
-                            return Instant.parse(repoLoader.getLatestReleaseTime(b.getName(), channel)).compareTo(Instant.parse(repoLoader.getLatestReleaseTime(a.getName(), channel)));
+                            String timeA = repoLoader.getLatestReleaseTime(a.getName(), channel);
+                            String timeB = repoLoader.getLatestReleaseTime(b.getName(), channel);
+                            return Instant.parse(timeB).compareTo(Instant.parse(timeA));
                         }
-                    }).collect(Collectors.toList());
-            String queryStr = searchView != null ? searchView.getQuery().toString() : "";
+                    })
+                    .collect(Collectors.toList());
+                    
+            String queryStr = (searchView != null && searchView.getQuery() != null) ? searchView.getQuery().toString() : "";
             runOnUiThread(() -> getFilter().filter(queryStr));
         }
 
@@ -410,7 +405,7 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
 
         @Override
         public Filter getFilter() {
-            return new RepoAdapter.ModuleFilter();
+            return new ModuleFilter();
         }
 
         @Override
@@ -445,16 +440,14 @@ public class RepoFragment extends BaseFragment implements RepoLoader.RepoListene
 
             @Override
             protected FilterResults performFiltering(CharSequence constraint) {
-                FilterResults filterResults = new FilterResults();
-                ArrayList<OnlineModule> filtered = new ArrayList<>();
                 String filter = constraint.toString().toLowerCase();
-                for (OnlineModule info : fullList) {
-                    if (lowercaseContains(info.getDescription(), filter) ||
-                            lowercaseContains(info.getName(), filter) ||
-                            lowercaseContains(info.getSummary(), filter)) {
-                        filtered.add(info);
-                    }
-                }
+                List<OnlineModule> filtered = fullList.stream()
+                        .filter(info -> lowercaseContains(info.getDescription(), filter) ||
+                                        lowercaseContains(info.getName(), filter) ||
+                                        lowercaseContains(info.getSummary(), filter))
+                        .collect(Collectors.toList());
+                        
+                FilterResults filterResults = new FilterResults();
                 filterResults.values = filtered;
                 filterResults.count = filtered.size();
                 return filterResults;
