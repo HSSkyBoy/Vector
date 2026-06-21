@@ -20,30 +20,59 @@ struct UniqueFd {
     operator int() const { return fd; }
 };
 
-extern "C" JNIEXPORT void JNICALL Java_org_matrix_vector_daemon_env_Dex2OatServer_doMountNative(
-    JNIEnv *env, jobject, jboolean enabled, jstring r32, jstring d32, jstring r64, jstring d64) {
-    char dex2oat32[PATH_MAX], dex2oat64[PATH_MAX];
-    if (realpath("bin/dex2oat32", dex2oat32) == nullptr) {
-        PLOGE("resolve realpath for bin/dex2oat32");
-    }
-    if (realpath("bin/dex2oat64", dex2oat64) == nullptr) {
-        PLOGE("resolve realpath for bin/dex2oat64");
+struct JStringUtfChars {
+    JNIEnv *env;
+    jstring value;
+    const char *chars;
+
+    JStringUtfChars(JNIEnv *env, jstring value)
+        : env(env), value(value), chars(value ? env->GetStringUTFChars(value, nullptr) : nullptr) {}
+
+    ~JStringUtfChars() {
+        if (chars != nullptr) env->ReleaseStringUTFChars(value, chars);
     }
 
-    const char *r32p = r32 ? env->GetStringUTFChars(r32, nullptr) : nullptr;
-    const char *d32p = d32 ? env->GetStringUTFChars(d32, nullptr) : nullptr;
-    const char *r64p = r64 ? env->GetStringUTFChars(r64, nullptr) : nullptr;
-    const char *d64p = d64 ? env->GetStringUTFChars(d64, nullptr) : nullptr;
+    operator const char *() const { return chars; }
+};
+
+struct MountTarget {
+    const char *source;
+    const char *target;
+};
+
+static const char *resolve_wrapper_path(const char *relative_path, char *resolved_path, bool needed) {
+    if (!needed) return nullptr;
+    if (realpath(relative_path, resolved_path) == nullptr) {
+        PLOGE("resolve realpath for %s", relative_path);
+        return nullptr;
+    }
+    return resolved_path;
+}
+
+static void bind_mount_readonly(const char *source, const char *target) {
+    if (source == nullptr || target == nullptr) return;
+    mount(source, target, nullptr, MS_BIND, nullptr);
+    mount(nullptr, target, nullptr, MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr);
+}
+
+static void unmount_target(const char *target) {
+    if (target != nullptr) umount(target);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_org_matrix_vector_daemon_env_Dex2OatServer_doMountNative(
+    JNIEnv *env, jobject, jboolean enabled, jstring r32, jstring d32, jstring r64, jstring d64) {
+    JStringUtfChars r32p(env, r32);
+    JStringUtfChars d32p(env, d32);
+    JStringUtfChars r64p(env, r64);
+    JStringUtfChars d64p(env, d64);
+
+    char dex2oat32[PATH_MAX], dex2oat64[PATH_MAX];
+    const char *dex2oat32p = resolve_wrapper_path("bin/dex2oat32", dex2oat32, r32p || d32p);
+    const char *dex2oat64p = resolve_wrapper_path("bin/dex2oat64", dex2oat64, r64p || d64p);
 
     pid_t pid = fork();
     if (pid > 0) {  // Parent process
         waitpid(pid, nullptr, 0);
-
-        // Safely release JNI strings in the parent
-        if (r32p) env->ReleaseStringUTFChars(r32, r32p);
-        if (d32p) env->ReleaseStringUTFChars(d32, d32p);
-        if (r64p) env->ReleaseStringUTFChars(r64, r64p);
-        if (d64p) env->ReleaseStringUTFChars(d64, d64p);
     } else if (pid == 0) {  // Child process
         UniqueFd ns(open("/proc/1/ns/mnt", O_RDONLY));
         if (ns >= 0) {
@@ -52,29 +81,22 @@ extern "C" JNIEXPORT void JNICALL Java_org_matrix_vector_daemon_env_Dex2OatServe
 
         if (enabled) {
             LOGI("Enable dex2oat wrapper");
-            if (r32p) {
-                mount(dex2oat32, r32p, nullptr, MS_BIND, nullptr);
-                mount(nullptr, r32p, nullptr, MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr);
-            }
-            if (d32p) {
-                mount(dex2oat32, d32p, nullptr, MS_BIND, nullptr);
-                mount(nullptr, d32p, nullptr, MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr);
-            }
-            if (r64p) {
-                mount(dex2oat64, r64p, nullptr, MS_BIND, nullptr);
-                mount(nullptr, r64p, nullptr, MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr);
-            }
-            if (d64p) {
-                mount(dex2oat64, d64p, nullptr, MS_BIND, nullptr);
-                mount(nullptr, d64p, nullptr, MS_BIND | MS_REMOUNT | MS_RDONLY, nullptr);
+            const MountTarget targets[] = {
+                {dex2oat32p, r32p},
+                {dex2oat32p, d32p},
+                {dex2oat64p, r64p},
+                {dex2oat64p, d64p},
+            };
+            for (const auto &target : targets) {
+                bind_mount_readonly(target.source, target.target);
             }
             execlp("resetprop", "resetprop", "--delete", "dalvik.vm.dex2oat-flags", nullptr);
         } else {
             LOGI("Disable dex2oat wrapper");
-            if (r32p) umount(r32p);
-            if (d32p) umount(d32p);
-            if (r64p) umount(r64p);
-            if (d64p) umount(d64p);
+            const char *targets[] = {r32p, d32p, r64p, d64p};
+            for (const auto *target : targets) {
+                unmount_target(target);
+            }
             execlp("resetprop", "resetprop", "dalvik.vm.dex2oat-flags", "--inline-max-code-units=0",
                    nullptr);
         }
