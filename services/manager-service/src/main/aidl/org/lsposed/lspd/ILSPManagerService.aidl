@@ -14,8 +14,6 @@ interface ILSPManagerService {
 
     ParcelableListSlice<PackageInfo> getInstalledPackagesFromAllUsers(int flags, boolean filterNoProcess) = 2;
 
-    ParcelableListSlice<PackageInfo> getInstalledPackagesFromAllUsers(int flags, boolean filterNoProcess) = 2;
-
     List<Application> enabledModules() = 3;
 
     boolean enableModule(String packageName, int userId) = 4;
@@ -23,6 +21,8 @@ interface ILSPManagerService {
     boolean disableModule(String packageName, int userId) = 5;
 
     boolean setModuleScope(String packageName, in List<Application> scope) = 6;
+
+    List<Application> getModuleScope(String packageName) = 7;
 
     boolean isVerboseLog() = 11;
 
@@ -78,17 +78,13 @@ interface ILSPManagerService {
 
     void setEnableStatusNotification(boolean enable) = 48;
 
+    void removeBlockedScopeRequest(String packageName, int userId) = 49;
+
     boolean getAutoInclude(String packageName) = 51;
 
     boolean setAutoInclude(String packageName, boolean enable) = 52;
 
     void setInjectionHardening(boolean enable) = 53;
 
-    boolean enableStatusNotification() = 47;
-
-    void setEnableStatusNotification(boolean enable) = 48;
-
-    void removeBlockedScopeRequest(String packageName) = 49;
-}
-    void removeBlockedScopeRequest(String packageName, int userId) = 49;
+    boolean isInjectionHardeningEnabled() = 54;
 }
