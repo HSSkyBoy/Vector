@@ -343,11 +343,16 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
         } else if (itemId == R.id.menu_app_info) {
             ConfigManager.startActivityAsUserWithFeature(new Intent(ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", selectedModule.packageName, null)), selectedModule.userId);
             return true;
-        } else if (itemId == R.id.menu_uninstall) {
+        } else if (itemId == R.id.menu_compile_speed) {
             CompileDialogFragment.speed(getChildFragmentManager(), selectedModule.pkg.applicationInfo);
             return true;
         } else if (itemId == R.id.menu_reset_scope_request) {
-            var success = ConfigManager.removeBlockedScopeRequest(selectedModule.packageName, selectedModule.userId);
+            var success = ConfigManager.removeBlockedScopeRequest(selectedModule.packageName);
+            showHint(success ? R.string.scope_request_setting_reset : R.string.scope_request_setting_reset_failed, false);
+            return true;
+        }
+        return super.onContextItemSelected(item);
+    }
             showHint(success ? R.string.scope_request_setting_reset : R.string.scope_request_setting_reset_failed, false);
             return true;
         }
@@ -610,12 +615,15 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
                 }
                 sb.setSpan(foregroundColorSpan, sb.length() - warningText.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
             }
-            var ver = repoLoader.getModuleLatestVersion(item.packageName);
-            if (!ModuleUtil.isUpdateIgnored(item.packageName) && ver != null && ver.upgradable(item.versionCode, item.versionName)) {
-            }
-
-            if (!isPick) {
-                holder.root.setAlpha(moduleUtil.isModuleEnabled(item.packageName, item.userId) ? 1.0f : .5f);
+                holder.itemView.setOnCreateContextMenuListener((menu, v, menuInfo) -> {
+                    requireActivity().getMenuInflater().inflate(R.menu.context_menu_modules, menu);
+                    menu.setHeaderTitle(item.getAppName());
+                    if (item.legacy) {
+                        menu.removeItem(R.id.menu_reset_scope_request);
+                    }
+                    Intent intent = AppHelper.getSettingsIntent(item.packageName, item.userId);
+                    if (intent == null) {
+                        menu.removeItem(R.id.menu_launch);
                 holder.itemView.setOnClickListener(v -> {
                     searchView.clearFocus();
                     safeNavigate(ModulesFragmentDirections.actionModulesFragmentToAppListFragment(item.packageName, item.userId));
