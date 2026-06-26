@@ -2,7 +2,10 @@ package org.matrix.vector.daemon.data
 
 import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
+import android.system.Os
+import android.system.OsConstants
 import org.apache.commons.lang3.SerializationUtilsX
+import java.io.File
 
 private const val TAG = "VectorPreferenceStore"
 
@@ -100,4 +103,36 @@ object PreferenceStore {
   fun isScopeRequestBlocked(pkg: String): Boolean =
       (getModulePrefs("lspd", 0, "config")["scope_request_blocked"] as? Set<*>)?.contains(pkg) ==
           true
+
+  fun isInjectionHardeningEnabled(): Boolean {
+    val configFile = File("/data/adb/disable_injection_hardening")
+    val enabled = configFile.exists()
+    updateModulePref("lspd", 0, "config", "disable_injection_hardening", enabled)
+    return enabled
+  }
+
+  fun setInjectionHardening(enabled: Boolean) {
+    val configFile = File("/data/adb/disable_injection_hardening")
+    if (enabled) {
+      try {
+        if (!configFile.exists()) {
+          configFile.createNewFile()
+        }
+        Os.chmod(configFile.absolutePath, OsConstants.S_IRUSR or OsConstants.S_IWUSR or OsConstants.S_IRGRP or OsConstants.S_IROTH)
+        updateModulePref("lspd", 0, "config", "disable_injection_hardening", enabled)
+      } catch (e: Throwable) {
+        android.util.Log.e(TAG, "failed to create config file for injection hardening", e)
+      }
+    } else {
+      try {
+        if (configFile.exists()) {
+          configFile.delete()
+        }
+        updateModulePref("lspd", 0, "config", "disable_injection_hardening", enabled)
+      } catch (e: Throwable) {
+        android.util.Log.e(TAG, "failed to delete config file for injection hardening", e)
+      }
+    }
+  }
 }
+
