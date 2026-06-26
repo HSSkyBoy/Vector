@@ -60,7 +60,6 @@ object ModuleDatabase {
 
       val values = ContentValues().apply { put("mid", mid) }
       for (app in scope) {
-        if (app.packageName == "system" && app.userId != 0) continue
         values.put("app_pkg_name", app.packageName)
         values.put("user_id", app.userId)
         db.insertWithOnConflict("scope", null, values, SQLiteDatabase.CONFLICT_IGNORE)
@@ -77,7 +76,7 @@ object ModuleDatabase {
   }
 
   fun removeModuleScope(packageName: String, scopePackageName: String, userId: Int): Boolean {
-    if (packageName == "lspd" || (scopePackageName == "system" && userId != 0)) return false
+    if (packageName == "lspd") return false
     val db = ConfigCache.dbHelper.writableDatabase
     val mid =
         db.compileStatement("SELECT mid FROM modules WHERE module_pkg_name = ?")
