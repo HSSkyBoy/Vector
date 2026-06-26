@@ -134,6 +134,19 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
                 view.setChecked(!isChecked);
                 enabled = !isChecked;
             }
+
+            if (enabled) {
+                if (!checkedList.isEmpty()) {
+                    new BlurBehindDialogBuilder(activity, R.style.ThemeOverlay_MaterialAlertDialog_Centered_FullWidthButtons)
+                            .setMessage(R.string.use_recommended_message)
+                            .setPositiveButton(android.R.string.ok, (dialog, which) -> checkRecommended())
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show();
+                } else {
+                    checkRecommended();
+                }
+            }
+
             var tmpChkList = new HashSet<>(checkedList);
             if (isChecked && !tmpChkList.isEmpty() && !ConfigManager.setModuleScope(module.packageName, module.legacy, tmpChkList)) {
                 view.setChecked(false);
@@ -224,10 +237,12 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
             fragment.showHint(R.string.module_is_not_activated_yet, false);
             return;
         }
+
+        var tmpChkList = new HashSet<>(checkedList);
+        tmpChkList.removeIf(i -> i.userId == module.userId);
+        tmpChkList.addAll(recommendedList);
+
         fragment.runAsync(() -> {
-            var tmpChkList = new HashSet<>(checkedList);
-            tmpChkList.removeIf(i -> i.userId == module.userId);
-            tmpChkList.addAll(recommendedList);
             ConfigManager.setModuleScope(module.packageName, module.legacy, tmpChkList);
             checkedList = tmpChkList;
             fragment.runOnUiThread(this::notifyDataSetChanged);
@@ -702,3 +717,4 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
         }
     }
 }
+
