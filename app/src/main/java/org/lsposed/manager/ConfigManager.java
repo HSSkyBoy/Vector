@@ -161,7 +161,7 @@ public class ConfigManager {
 
     public static boolean removeBlockedScopeRequest(String packageName) {
         try {
-            LSPManagerServiceHolder.getService().removeBlockedScopeRequest(packageName);
+            LSPManagerServiceHolder.getService().removeBlockedScopeRequest(packageName, 0);
             return true;
         } catch (RemoteException e) {
             Log.e(App.TAG, Log.getStackTraceString(e));
@@ -374,4 +374,5 @@ public class ConfigManager {
         }
     }
 }
+
 
