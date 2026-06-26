@@ -104,6 +104,15 @@ object PreferenceStore {
       (getModulePrefs("lspd", 0, "config")["scope_request_blocked"] as? Set<*>)?.contains(pkg) ==
           true
 
+  fun removeBlockedScopeRequest(pkg: String) {
+    val blocked =
+        (getModulePrefs("lspd", 0, "config")["scope_request_blocked"] as? MutableSet<String>)
+            ?: return
+    if (blocked.remove(pkg)) {
+      updateModulePref("lspd", 0, "config", "scope_request_blocked", blocked)
+    }
+  }
+
   fun isInjectionHardeningEnabled(): Boolean {
     val configFile = File("/data/adb/disable_injection_hardening")
     val enabled = configFile.exists()
