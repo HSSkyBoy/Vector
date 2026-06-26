@@ -443,4 +443,11 @@ object ManagerService : ILSPManagerService.Stub() {
       ModuleDatabase.setAutoInclude(packageName, enabled)
 
   override fun getAutoInclude(packageName: String) = ConfigCache.getAutoInclude(packageName)
+
+  override fun setInjectionHardening(enabled: Boolean) {
+      PreferenceStore.setInjectionHardening(enabled)
+  }
+
+  override fun isInjectionHardeningEnabled() = PreferenceStore.isInjectionHardeningEnabled()
 }
+
