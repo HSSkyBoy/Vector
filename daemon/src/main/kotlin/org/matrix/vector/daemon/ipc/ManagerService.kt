@@ -225,11 +225,17 @@ object ManagerService : ILSPManagerService.Stub() {
         packageManager?.getInstalledPackagesFromAllUsers(flags, filterNoProcess) ?: emptyList())
   }
 
-  override fun enabledModules() = ConfigCache.state.modules.keys.toTypedArray()
+  override fun enabledModules() = ConfigCache.state.modules.map {
+      Application(
+          packageName = it.key,
+          userId = it.value.appId / 100000
+      )
+  }
 
-  override fun enableModule(packageName: String) = ModuleDatabase.enableModule(packageName)
+  override fun enableModule(packageName: String, userId: Int) =
+      ModuleDatabase.enableModule(packageName)
 
-  override fun disableModule(packageName: String) = ModuleDatabase.disableModule(packageName)
+  override fun disableModule(packageName: String, userId: Int) = ModuleDatabase.disableModule(packageName)
 
   override fun setModuleScope(packageName: String, scope: MutableList<Application>) =
       ModuleDatabase.setModuleScope(packageName, scope)
@@ -449,5 +455,10 @@ object ManagerService : ILSPManagerService.Stub() {
   }
 
   override fun isInjectionHardeningEnabled() = PreferenceStore.isInjectionHardeningEnabled()
+
+  override fun removeBlockedScopeRequest(packageName: String, userId: Int) {
+      PreferenceStore.removeBlockedScopeRequest(packageName)
+  }
 }
+
 
