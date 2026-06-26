@@ -84,9 +84,11 @@ interface ILSPManagerService {
 
     void setInjectionHardening(boolean enable) = 53;
 
-    boolean isInjectionHardeningEnabled() = 54;
+    boolean enableStatusNotification() = 47;
 
     void setEnableStatusNotification(boolean enable) = 48;
 
+    void removeBlockedScopeRequest(String packageName) = 49;
+}
     void removeBlockedScopeRequest(String packageName, int userId) = 49;
 }
