@@ -159,9 +159,19 @@ public class ConfigManager {
         }
     }
 
-    public static boolean removeBlockedScopeRequest(String packageName, int userId) {
+    public static boolean removeBlockedScopeRequest(String packageName) {
         try {
-            LSPManagerServiceHolder.getService().removeBlockedScopeRequest(packageName, userId);
+            LSPManagerServiceHolder.getService().removeBlockedScopeRequest(packageName);
+            return true;
+        } catch (RemoteException e) {
+            Log.e(App.TAG, Log.getStackTraceString(e));
+            return false;
+        }
+    }
+
+    public static boolean isVerboseLogEnabled() {
+        try {
+            return LSPManagerServiceHolder.getService().isVerboseLog();
             return true;
         } catch (RemoteException e) {
             Log.e(App.TAG, Log.getStackTraceString(e));
