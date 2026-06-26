@@ -344,13 +344,13 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
             ConfigManager.startActivityAsUserWithFeature(new Intent(ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", selectedModule.packageName, null)), selectedModule.userId);
             return true;
         } else if (itemId == R.id.menu_uninstall) {
-            new BlurBehindDialogBuilder(requireActivity(), R.style.ThemeOverlay_MaterialAlertDialog_FullWidthButtons)
-                    .setIcon(selectedModule.app.loadIcon(pm))
-                    .setTitle(selectedModule.getAppName())
-                    .setMessage(R.string.module_uninstall_message)
-                    .setPositiveButton(android.R.string.ok, (dialog, which) ->
-                            runAsync(() -> {
-                                boolean success = ConfigManager.uninstallPackage(selectedModule.packageName, selectedModule.userId);
+            CompileDialogFragment.speed(getChildFragmentManager(), selectedModule.pkg.applicationInfo);
+            return true;
+        } else if (itemId == R.id.menu_reset_scope_request) {
+            var success = ConfigManager.removeBlockedScopeRequest(selectedModule.packageName, selectedModule.userId);
+            showHint(success ? R.string.scope_request_setting_reset : R.string.scope_request_setting_reset_failed, false);
+            return true;
+        }
                                 String text = success ? getString(R.string.module_uninstalled, selectedModule.getAppName()) : getString(R.string.module_uninstall_failed);
                                 showHint(text, false);
                                 if (success)
@@ -612,13 +612,13 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
             }
             var ver = repoLoader.getModuleLatestVersion(item.packageName);
             if (!ModuleUtil.isUpdateIgnored(item.packageName) && ver != null && ver.upgradable(item.versionCode, item.versionName)) {
-                if (warningText != null) sb.append("\n");
-                String recommended = getString(R.string.update_available, ver.versionName);
-                sb.append(recommended);
-                final ForegroundColorSpan foregroundColorSpan = new ForegroundColorSpan(ResourceUtils.resolveColor(requireActivity().getTheme(), androidx.appcompat.R.attr.colorPrimary));
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    final TypefaceSpan typefaceSpan = new TypefaceSpan(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-                    sb.setSpan(typefaceSpan, sb.length() - recommended.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+            }
+
+            if (!isPick) {
+                holder.root.setAlpha(moduleUtil.isModuleEnabled(item.packageName, item.userId) ? 1.0f : .5f);
+                holder.itemView.setOnClickListener(v -> {
+                    searchView.clearFocus();
+                    safeNavigate(ModulesFragmentDirections.actionModulesFragmentToAppListFragment(item.packageName, item.userId));
                 } else {
                     final StyleSpan styleSpan = new StyleSpan(Typeface.BOLD);
                     sb.setSpan(styleSpan, sb.length() - recommended.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
@@ -706,14 +706,14 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
 
         @Override
         public Filter getFilter() {
-            return new ModuleAdapter.ApplicationFilter();
-        }
-
-        public void setOnPickListener(View.OnClickListener onPickListener) {
-            this.onPickListener = onPickListener;
-        }
-
-        public void refresh() {
+            var tmpList = new ArrayList<ModuleUtil.InstalledModule>();
+            modules.values().parallelStream()
+                    .sorted((a, b) -> {
+                        boolean aChecked = moduleUtil.isModuleEnabled(a.packageName, a.userId);
+                        boolean bChecked = moduleUtil.isModuleEnabled(b.packageName, b.userId);
+                        if (aChecked == bChecked) {
+                            var c = cmp.compare(a.pkg, b.pkg);
+                            if (c == 0) {
             runAsync(reloadModules);
         }
 
