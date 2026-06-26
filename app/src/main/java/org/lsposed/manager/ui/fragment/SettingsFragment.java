@@ -225,6 +225,12 @@ public class SettingsFragment extends BaseFragment {
                 );
             }
 
+            MaterialSwitchPreference prefInjectionHardening = findPreference("disable_injection_hardening");
+            if (prefInjectionHardening != null) {
+                prefInjectionHardening.setChecked(!installed || ConfigManager.isInjectionHardeningEnabled());
+                prefInjectionHardening.setOnPreferenceChangeListener((preference, newValue) -> ConfigManager.setInjectionHardening((boolean) newValue));
+            }
+
             Preference shortcut = findPreference("add_shortcut");
             if (shortcut != null) {
                 shortcut.setVisible(App.isParasitic);
@@ -439,3 +445,4 @@ public class SettingsFragment extends BaseFragment {
         }
     }
 }
+
