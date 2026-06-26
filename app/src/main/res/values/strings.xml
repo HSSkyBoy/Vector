@@ -156,12 +156,15 @@
     <string name="android_framework">System Framework</string>
     <string name="menu_backup_and_restore">Backup</string>
     <string name="menu_backup">Backup</string>
-    <string name="menu_restore">Restore</string>
-    <string name="force_stop">Force stop</string>
-    <string name="force_stop_dlg_title">Force stop?</string>
-    <string name="force_stop_dlg_text">If you force stop an app, it may misbehave.</string>
-    <string name="reboot_required">Reboot is required for this change to apply</string>
-    <string name="reboot">Reboot</string>
+    <!-- ModulesActivity and AppListActivity -->
+    <string name="modules_other_app">View in other app</string>
+    <string name="module_app_info">App info</string>
+    <string name="reset_scope_request_setting">Reset scope request setting</string>
+    <string name="scope_request_setting_reset">Scope request setting has been reset</string>
+    <string name="scope_request_setting_reset_failed">Failed to reset scope request setting</string>
+    <string name="list_empty">¯\\_(ツ)_\/¯\nNothing here</string>
+
+    <!-- SettingsActivity -->
     <string name="menu_hide">Hide</string>
     <!-- ModulesActivity and AppListActivity -->
     <string name="modules_other_app">View in other app</string>
