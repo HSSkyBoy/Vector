@@ -43,6 +43,4 @@
         android:title="@string/reset_scope_request_setting" />
 
 </menu>
-        android:title="@string/module_uninstall" />
 
-</menu>
