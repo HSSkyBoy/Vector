@@ -38,6 +38,7 @@ import org.lsposed.manager.R;
 import org.lsposed.manager.util.ThemeUtil;
 
 import rikka.material.app.MaterialActivity;
+
 public class BaseActivity extends MaterialActivity {
     private static Bitmap icon = null;
 
@@ -70,12 +71,13 @@ public class BaseActivity extends MaterialActivity {
 
     @Override
     public void onApplyUserThemeResource(@NonNull Resources.Theme theme, boolean isDecorView) {
-    @Override
-    protected void onStop() {
-        super.onStop();
+        if (!ThemeUtil.isSystemAccent()) {
+            theme.applyStyle(ThemeUtil.getColorThemeStyleRes(), true);
+        }
+        theme.applyStyle(ThemeUtil.getNightThemeStyleRes(this), true);
+        theme.applyStyle(rikka.material.preference.R.style.ThemeOverlay_Rikka_Material3_Preference, true);
     }
 
-    @Override
     @Override
     public String computeUserThemeKey() {
         return ThemeUtil.getColorTheme() + ThemeUtil.getNightTheme(this);
