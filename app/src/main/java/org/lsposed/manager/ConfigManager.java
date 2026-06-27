@@ -82,18 +82,18 @@ public class ConfigManager {
         return list;
     }
 
-    public static List<Application> getEnabledModules() {
+    public static String[] getEnabledModules() {
         try {
             return LSPManagerServiceHolder.getService().enabledModules();
         } catch (RemoteException e) {
             Log.e(App.TAG, Log.getStackTraceString(e));
-            return new ArrayList<>();
+            return new String[0];
         }
     }
 
-    public static boolean setModuleEnabled(String packageName, int userId, boolean enable) {
+    public static boolean setModuleEnabled(String packageName, boolean enable) {
         try {
-            return enable ? LSPManagerServiceHolder.getService().enableModule(packageName, userId) : LSPManagerServiceHolder.getService().disableModule(packageName, userId);
+            return enable ? LSPManagerServiceHolder.getService().enableModule(packageName) : LSPManagerServiceHolder.getService().disableModule(packageName);
         } catch (RemoteException e) {
             Log.e(App.TAG, Log.getStackTraceString(e));
             return false;
@@ -159,22 +159,12 @@ public class ConfigManager {
         }
     }
 
-    public static boolean removeBlockedScopeRequest(String packageName) {
-        try {
-            LSPManagerServiceHolder.getService().removeBlockedScopeRequest(packageName, 0);
-            return true;
-        } catch (RemoteException e) {
-            Log.e(App.TAG, Log.getStackTraceString(e));
-            return false;
-        }
-    }
-
     public static boolean isVerboseLogEnabled() {
         try {
             return LSPManagerServiceHolder.getService().isVerboseLog();
-            return true;
         } catch (RemoteException e) {
             Log.e(App.TAG, Log.getStackTraceString(e));
+            return false;
         }
     }
 
@@ -354,25 +344,4 @@ public class ConfigManager {
             return false;
         }
     }
-
-    public static boolean isInjectionHardeningEnabled() {
-        try {
-            return LSPManagerServiceHolder.getService().isInjectionHardeningEnabled();
-        } catch (RemoteException e) {
-            Log.e(App.TAG, Log.getStackTraceString(e));
-            return false;
-        }
-    }
-
-    public static boolean setInjectionHardening(boolean enabled) {
-        try {
-            LSPManagerServiceHolder.getService().setInjectionHardening(enabled);
-            return true;
-        } catch (RemoteException e) {
-            Log.e(App.TAG, Log.getStackTraceString(e));
-            return false;
-        }
-    }
 }
-
-
