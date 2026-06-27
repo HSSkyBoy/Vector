@@ -164,10 +164,7 @@ JingMatrix</string>
     <string name="reboot">重启系统</string>
     <string name="menu_hide">隐藏</string>
     <!-- ModulesActivity and AppListActivity -->
-    <string name="module_app_info">应用信息</string>
-    <string name="list_empty">¯\\\\_(ツ)_\/¯\n空空如也</string>
     <!-- SettingsActivity -->
-    <string name="settings_group_framework">框架</string>
     <string name="settings_disable_verbose_log">禁用详细日志</string>
     <string name="settings_disable_verbose_log_summary">报告问题要求包含详细日志</string>
     <string name="pure_black_dark_theme">纯黑主题</string>
@@ -247,4 +244,5 @@ JingMatrix</string>
     <string name="color_brown">棕色</string>
     <string name="color_blue_grey">灰蓝</string>
 </resources>
+
 
