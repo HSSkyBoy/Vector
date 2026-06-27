@@ -62,15 +62,6 @@ object FileSystem {
           Os.chmod(basePath.toString(), "700".toInt(8))
           SELinux.setFileContext(basePath.toString(), "u:object_r:system_file:s0")
           Files.createDirectories(configDirPath)
-          // Restore SELinux labels on module subdirectories to prevent
-          // Android from resetting them on reboot (Irena 9cfbbd7)
-          if (Files.isDirectory(modulePath)) {
-            Files.walk(modulePath).forEach { path ->
-              if (modulePath.relativize(path).nameCount >= 2) {
-                SELinux.setFileContext(path.toString(), "u:object_r:lsposed_file:s0")
-              }
-            }
-          }
         }
         .onFailure { Log.e(TAG, "Failed to initialize directories", it) }
   }
@@ -467,4 +458,3 @@ object FileSystem {
     return logDirPath.resolve(getNewLogFileName("modules")).toFile()
   }
 }
-
