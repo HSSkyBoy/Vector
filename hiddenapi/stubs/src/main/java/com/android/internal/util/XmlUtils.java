@@ -1,43 +1,41 @@
 package com.android.internal.util;
 
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
 import java.io.IOException;
 import java.io.InputStream;
 
 public class XmlUtils {
-    public static void beginDocument(XmlPullParser parser, String firstElementName)
-            throws XmlPullParserException, IOException {
+    public static void beginDocument(Object parser, String firstElementName)
+            throws Exception, IOException {
         throw new UnsupportedOperationException("STUB");
     }
 
-    public static String readText(XmlPullParser parser) throws IOException, XmlPullParserException {
+    public static String readText(Object parser) throws IOException, Exception {
         throw new UnsupportedOperationException("STUB");
     }
 
-    public static int nextElement(XmlPullParser parser) throws XmlPullParserException, IOException {
+    public static int nextElement(Object parser) throws Exception, IOException {
         throw new UnsupportedOperationException("STUB");
     }
 
-    public static int readIntAttribute(XmlPullParser in, String name, int defaultValue) {
+    public static int readIntAttribute(Object in, String name, int defaultValue) {
         throw new UnsupportedOperationException("STUB");
     }
 
-    public static boolean readBooleanAttribute(XmlPullParser in, String name) {
+    public static boolean readBooleanAttribute(Object in, String name) {
         throw new UnsupportedOperationException("STUB");
     }
 
-    public static String readStringAttribute(XmlPullParser in, String name) {
+    public static String readStringAttribute(Object in, String name) {
         throw new UnsupportedOperationException("STUB");
     }
 
-    public static void skipCurrentTag(XmlPullParser parser)
-            throws XmlPullParserException, IOException {
+    public static void skipCurrentTag(Object parser)
+            throws Exception, IOException {
         throw new UnsupportedOperationException("STUB");
     }
 
-    public static void readListMap(XmlPullParser parser, java.util.List<java.util.Map<String, String>> list,
-            String[] tag, String[] key, String[] value) throws XmlPullParserException, IOException {
+    public static void readListMap(Object parser, java.util.List<java.util.Map<String, String>> list,
+            String[] tag, String[] key, String[] value) throws Exception, IOException {
         throw new UnsupportedOperationException("STUB");
     }
 }
