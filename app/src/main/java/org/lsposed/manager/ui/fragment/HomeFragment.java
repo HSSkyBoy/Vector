@@ -47,7 +47,7 @@ import org.lsposed.manager.R;
 import org.lsposed.manager.databinding.DialogAboutBinding;
 import org.lsposed.manager.databinding.FragmentHomeBinding;
 import org.lsposed.manager.ui.dialog.BlurBehindDialogBuilder;
-import org.lsposed.manager.ui.dialog.FlashDialogBuilder;
+import org.lsposed.manager.ui.dialog.WelcomeDialog;
 import org.lsposed.manager.util.NavUtil;
 import org.lsposed.manager.util.UpdateUtil;
 import org.lsposed.manager.util.chrome.LinkTransformationMethod;
@@ -55,9 +55,12 @@ import org.lsposed.manager.util.chrome.LinkTransformationMethod;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import rikka.core.util.ClipboardUtils;
+import rikka.material.app.LocaleDelegate;
 
 public class HomeFragment extends BaseFragment implements MenuProvider {
     private FragmentHomeBinding binding;
@@ -236,12 +239,18 @@ public class HomeFragment extends BaseFragment implements MenuProvider {
         String manufacturer = Character.toUpperCase(Build.MANUFACTURER.charAt(0)) + Build.MANUFACTURER.substring(1);
         if (!Build.BRAND.equals(Build.MANUFACTURER)) {
             manufacturer += " " + Character.toUpperCase(Build.BRAND.charAt(0)) + Build.BRAND.substring(1);
-                activity.getString(R.string.info_system_abi) +
-                "\n" +
-                binding.systemAbi.getText();
-        binding.copyInfo.setOnClickListener(v -> {
-            ClipboardUtils.put(activity, info);
-            showHint(R.string.info_copied, false);
+        }
+        manufacturer += " " + Build.MODEL + " ";
+        return manufacturer;
+    }
+
+    private boolean isDeveloper() {
+        var developer = new AtomicBoolean(false);
+        var pids = Paths.get("/data/local/tmp/.studio/ipids");
+        try (var dir = Files.list(pids)) {
+            dir.findFirst().ifPresent(name -> {
+                var pid = Integer.parseInt(name.getFileName().toString());
+                try {
                     Os.kill(pid, 0);
                     developer.set(true);
                 } catch (ErrnoException e) {
