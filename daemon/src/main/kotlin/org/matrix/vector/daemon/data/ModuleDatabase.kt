@@ -9,7 +9,7 @@ private const val TAG = "VectorModuleDatabase"
 
 object ModuleDatabase {
 
-  fun enableModule(packageName: String): Boolean {
+  fun enableModule(packageName: String, userId: Int = 0): Boolean {
     if (packageName == "lspd") return false
     val db = ConfigCache.dbHelper.writableDatabase
     var changed = false
@@ -37,7 +37,7 @@ object ModuleDatabase {
     return changed
   }
 
-  fun disableModule(packageName: String): Boolean {
+  fun disableModule(packageName: String, userId: Int = 0): Boolean {
     if (packageName == "lspd") return false
     val values = ContentValues().apply { put("enabled", 0) }
     val changed =
