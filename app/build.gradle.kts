@@ -152,9 +152,7 @@ dependencies {
 
 configurations.all {
     exclude("org.jetbrains", "annotations")
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(projects.services.managerService)
-
+    exclude("androidx.appcompat", "appcompat")
+    exclude("org.jetbrains.kotlin", "kotlin-stdlib-jdk7")
+    exclude("org.jetbrains.kotlin", "kotlin-stdlib-jdk8")
 }
-
-configurations.all {
