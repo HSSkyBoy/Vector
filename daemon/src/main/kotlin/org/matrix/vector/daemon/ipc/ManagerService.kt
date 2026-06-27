@@ -89,12 +89,7 @@ object ManagerService : ILSPManagerService.Stub() {
   @Synchronized
   fun tryRegisterManagerProcess(pid: Int, uid: Int, processName: String): Boolean {
     if (ConfigCache.isManager(uid) && processName == BuildConfig.DEFAULT_MANAGER_PACKAGE_NAME) {
-      if (pendingManager) {
-        Log.v(TAG, "Parasitic manager registered.")
-        pendingManager = false
-      } else {
-        Log.v(TAG, "Starting user-installed manager process.")
-      }
+      pendingManager = false
       managerPid = pid
       return true
     }
@@ -106,10 +101,11 @@ object ManagerService : ILSPManagerService.Stub() {
   private fun getManagerIntent(): Intent? {
     if (managerIntent != null) return managerIntent
     runCatching {
+          var packageName = BuildConfig.DEFAULT_MANAGER_PACKAGE_NAME
           var intent =
               Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_INFO)
-                setPackage(BuildConfig.MANAGER_INJECTED_PKG_NAME)
+                setPackage(packageName)
               }
           var ris = packageManager?.queryIntentActivitiesCompat(intent, intent.type, 0, 0)
 
@@ -120,14 +116,23 @@ object ManagerService : ILSPManagerService.Stub() {
           }
 
           if (ris.isNullOrEmpty()) {
+            // Fallback to injected manager
+            packageName = BuildConfig.MANAGER_INJECTED_PKG_NAME
+            intent.setPackage(packageName)
+            ris = packageManager?.queryIntentActivitiesCompat(intent, intent.type, 0, 0)
+          }
+
+          if (ris.isNullOrEmpty()) {
+            intent.removeCategory(Intent.CATEGORY_LAUNCHER)
             val pkgInfo =
                 packageManager?.getPackageInfoCompat(
-                    BuildConfig.MANAGER_INJECTED_PKG_NAME, PackageManager.GET_ACTIVITIES, 0)
+                    packageName, PackageManager.GET_ACTIVITIES, 0)
             val activity = pkgInfo?.activities?.firstOrNull { it.processName == it.packageName }
             if (activity != null) {
               intent =
                   Intent(Intent.ACTION_MAIN).apply {
                     component = ComponentName(activity.packageName, activity.name)
+                    setPackage(packageName)
                   }
             } else return null
           } else {
@@ -138,7 +143,7 @@ object ManagerService : ILSPManagerService.Stub() {
 
           intent.categories?.clear()
           intent.addCategory("org.lsposed.manager.LAUNCH_MANAGER")
-          intent.setPackage(BuildConfig.MANAGER_INJECTED_PKG_NAME)
+          intent.setPackage(packageName)
           managerIntent = Intent(intent)
         }
         .onFailure { Log.e(TAG, "Failed to build manager intent", it) }
@@ -149,6 +154,10 @@ object ManagerService : ILSPManagerService.Stub() {
     val intent = getManagerIntent() ?: return
     val launchIntent = Intent(intent).apply { data = withData }
     runCatching {
+          // Force stop manager if guard is dead to allow clean restart (Irena 2afbaec)
+          if (guard == null || !guard!!.isAlive) {
+            launchIntent.`package`?.let { activityManager?.forceStopPackage(it, 0) }
+          }
           activityManager?.startActivityAsUserWithFeature(
               SystemContext.appThread,
               "android",
@@ -225,11 +234,17 @@ object ManagerService : ILSPManagerService.Stub() {
         packageManager?.getInstalledPackagesFromAllUsers(flags, filterNoProcess) ?: emptyList())
   }
 
-  override fun enabledModules() = ConfigCache.state.modules.keys.toTypedArray()
+  override fun enabledModules() = ConfigCache.state.modules.map {
+      Application(
+          packageName = it.key,
+          userId = it.value.appId / 100000
+      )
+  }
 
-  override fun enableModule(packageName: String) = ModuleDatabase.enableModule(packageName)
+  override fun enableModule(packageName: String, userId: Int) =
+      ModuleDatabase.enableModule(packageName).also { ModuleService.sendBinderForRunningModule(packageName) }
 
-  override fun disableModule(packageName: String) = ModuleDatabase.disableModule(packageName)
+  override fun disableModule(packageName: String, userId: Int) = ModuleDatabase.disableModule(packageName)
 
   override fun setModuleScope(packageName: String, scope: MutableList<Application>) =
       ModuleDatabase.setModuleScope(packageName, scope)
@@ -443,4 +458,16 @@ object ManagerService : ILSPManagerService.Stub() {
       ModuleDatabase.setAutoInclude(packageName, enabled)
 
   override fun getAutoInclude(packageName: String) = ConfigCache.getAutoInclude(packageName)
+
+  override fun setInjectionHardening(enabled: Boolean) {
+      PreferenceStore.setInjectionHardening(enabled)
+  }
+
+  override fun isInjectionHardeningEnabled() = PreferenceStore.isInjectionHardeningEnabled()
+
+  override fun removeBlockedScopeRequest(packageName: String, userId: Int) {
+      PreferenceStore.removeBlockedScopeRequest(packageName)
+  }
 }
+
+
