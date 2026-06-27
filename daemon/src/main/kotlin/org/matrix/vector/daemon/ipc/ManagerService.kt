@@ -155,7 +155,7 @@ object ManagerService : ILSPManagerService.Stub() {
     val launchIntent = Intent(intent).apply { data = withData }
     runCatching {
           // Force stop manager if guard is dead to allow clean restart (Irena 2afbaec)
-          if (guard == null || !guard!!.isAlive) {
+          if (guard == null) {
             launchIntent.`package`?.let { activityManager?.forceStopPackage(it, 0) }
           }
           activityManager?.startActivityAsUserWithFeature(
@@ -235,14 +235,11 @@ object ManagerService : ILSPManagerService.Stub() {
   }
 
   override fun enabledModules() = ConfigCache.state.modules.map {
-      Application(
-          packageName = it.key,
-          userId = it.value.appId / 100000
-      )
+      Application(it.key, it.value.appId / 100000)
   }
 
   override fun enableModule(packageName: String, userId: Int) =
-      ModuleDatabase.enableModule(packageName).also { ModuleService.sendBinderForRunningModule(packageName) }
+      ModuleDatabase.enableModule(packageName, userId).also { ModuleService.sendBinderForRunningModule(packageName) }
 
   override fun disableModule(packageName: String, userId: Int) = ModuleDatabase.disableModule(packageName)
 
@@ -466,7 +463,7 @@ object ManagerService : ILSPManagerService.Stub() {
   override fun isInjectionHardeningEnabled() = PreferenceStore.isInjectionHardeningEnabled()
 
   override fun removeBlockedScopeRequest(packageName: String, userId: Int) {
-      PreferenceStore.removeBlockedScopeRequest(packageName)
+      PreferenceStore.removeBlockedScopeRequest(packageName, userId)
   }
 }
 
