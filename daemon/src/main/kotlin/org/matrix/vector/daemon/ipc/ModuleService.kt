@@ -200,7 +200,7 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
 
   override fun requestScope(packages: List<String>, callback: IXposedScopeCallback) {
     val userId = ensureModule()
-    if (!PreferenceStore.isScopeRequestBlocked(loadedModule.packageName)) {
+    if (!PreferenceStore.isScopeRequestBlocked(loadedModule.packageName, userId)) {
       packages.forEach { pkg ->
         NotificationManager.requestModuleScope(loadedModule.packageName, userId, pkg, callback)
       }
