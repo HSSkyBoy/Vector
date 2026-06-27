@@ -343,19 +343,14 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
         } else if (itemId == R.id.menu_app_info) {
             ConfigManager.startActivityAsUserWithFeature(new Intent(ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", selectedModule.packageName, null)), selectedModule.userId);
             return true;
-        } else if (itemId == R.id.menu_compile_speed) {
-            CompileDialogFragment.speed(getChildFragmentManager(), selectedModule.pkg.applicationInfo);
-            return true;
-        } else if (itemId == R.id.menu_reset_scope_request) {
-            var success = ConfigManager.removeBlockedScopeRequest(selectedModule.packageName);
-            showHint(success ? R.string.scope_request_setting_reset : R.string.scope_request_setting_reset_failed, false);
-            return true;
-        }
-        return super.onContextItemSelected(item);
-    }
-            showHint(success ? R.string.scope_request_setting_reset : R.string.scope_request_setting_reset_failed, false);
-            return true;
-        }
+        } else if (itemId == R.id.menu_uninstall) {
+            new BlurBehindDialogBuilder(requireActivity(), R.style.ThemeOverlay_MaterialAlertDialog_FullWidthButtons)
+                    .setIcon(selectedModule.app.loadIcon(pm))
+                    .setTitle(selectedModule.getAppName())
+                    .setMessage(R.string.module_uninstall_message)
+                    .setPositiveButton(android.R.string.ok, (dialog, which) ->
+                            runAsync(() -> {
+                                boolean success = ConfigManager.uninstallPackage(selectedModule.packageName, selectedModule.userId);
                                 String text = success ? getString(R.string.module_uninstalled, selectedModule.getAppName()) : getString(R.string.module_uninstall_failed);
                                 showHint(text, false);
                                 if (success)
@@ -615,18 +610,15 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
                 }
                 sb.setSpan(foregroundColorSpan, sb.length() - warningText.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
             }
-                holder.itemView.setOnCreateContextMenuListener((menu, v, menuInfo) -> {
-                    requireActivity().getMenuInflater().inflate(R.menu.context_menu_modules, menu);
-                    menu.setHeaderTitle(item.getAppName());
-                    if (item.legacy) {
-                        menu.removeItem(R.id.menu_reset_scope_request);
-                    }
-                    Intent intent = AppHelper.getSettingsIntent(item.packageName, item.userId);
-                    if (intent == null) {
-                        menu.removeItem(R.id.menu_launch);
-                holder.itemView.setOnClickListener(v -> {
-                    searchView.clearFocus();
-                    safeNavigate(ModulesFragmentDirections.actionModulesFragmentToAppListFragment(item.packageName, item.userId));
+            var ver = repoLoader.getModuleLatestVersion(item.packageName);
+            if (!ModuleUtil.isUpdateIgnored(item.packageName) && ver != null && ver.upgradable(item.versionCode, item.versionName)) {
+                if (warningText != null) sb.append("\n");
+                String recommended = getString(R.string.update_available, ver.versionName);
+                sb.append(recommended);
+                final ForegroundColorSpan foregroundColorSpan = new ForegroundColorSpan(ResourceUtils.resolveColor(requireActivity().getTheme(), androidx.appcompat.R.attr.colorPrimary));
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    final TypefaceSpan typefaceSpan = new TypefaceSpan(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                    sb.setSpan(typefaceSpan, sb.length() - recommended.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
                 } else {
                     final StyleSpan styleSpan = new StyleSpan(Typeface.BOLD);
                     sb.setSpan(styleSpan, sb.length() - recommended.length(), sb.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
@@ -714,14 +706,14 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
 
         @Override
         public Filter getFilter() {
-            var tmpList = new ArrayList<ModuleUtil.InstalledModule>();
-            modules.values().parallelStream()
-                    .sorted((a, b) -> {
-                        boolean aChecked = moduleUtil.isModuleEnabled(a.packageName, a.userId);
-                        boolean bChecked = moduleUtil.isModuleEnabled(b.packageName, b.userId);
-                        if (aChecked == bChecked) {
-                            var c = cmp.compare(a.pkg, b.pkg);
-                            if (c == 0) {
+            return new ModuleAdapter.ApplicationFilter();
+        }
+
+        public void setOnPickListener(View.OnClickListener onPickListener) {
+            this.onPickListener = onPickListener;
+        }
+
+        public void refresh() {
             runAsync(reloadModules);
         }
 
