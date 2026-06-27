@@ -235,7 +235,10 @@ object ManagerService : ILSPManagerService.Stub() {
   }
 
   override fun enabledModules() = ConfigCache.state.modules.map {
-      Application(it.key, it.value.appId / 100000)
+      Application().apply {
+          packageName = it.key
+          userId = it.value.appId / 100000
+      }
   }
 
   override fun enableModule(packageName: String, userId: Int) =
