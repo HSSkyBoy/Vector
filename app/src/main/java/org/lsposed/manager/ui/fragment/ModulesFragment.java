@@ -633,7 +633,7 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
             }
 
             if (!isPick) {
-                holder.root.setAlpha(moduleUtil.isModuleEnabled(item.packageName) ? 1.0f : .5f);
+                holder.root.setAlpha(moduleUtil.isModuleEnabled(item.packageName, 0) ? 1.0f : .5f);
                 holder.itemView.setOnClickListener(v -> {
                     searchView.clearFocus();
                     if (isLoaded()) {
@@ -733,8 +733,8 @@ public class ModulesFragment extends BaseFragment implements ModuleUtil.ModuleLi
             var tmpList = new ArrayList<ModuleUtil.InstalledModule>();
             modules.values().parallelStream()
                     .sorted((a, b) -> {
-                        boolean aChecked = moduleUtil.isModuleEnabled(a.packageName);
-                        boolean bChecked = moduleUtil.isModuleEnabled(b.packageName);
+                        boolean aChecked = moduleUtil.isModuleEnabled(a.packageName, 0);
+                        boolean bChecked = moduleUtil.isModuleEnabled(b.packageName, 0);
                         if (aChecked == bChecked) {
                             var c = cmp.compare(a.pkg, b.pkg);
                             if (c == 0) {
