@@ -100,15 +100,16 @@ object PreferenceStore {
   fun setVerboseLog(enabled: Boolean) =
       updateModulePref("lspd", 0, "config", "enable_verbose_log", enabled)
 
-  fun isScopeRequestBlocked(pkg: String): Boolean =
-      (getModulePrefs("lspd", 0, "config")["scope_request_blocked"] as? Set<*>)?.contains(pkg) ==
-          true
+  fun isScopeRequestBlocked(pkg: String, userId: Int): Boolean =
+      (getModulePrefs("lspd", 0, "config")["scope_request_blocked"] as? Set<*>)?.contains(
+          "$pkg/$userId") == true
 
-  fun removeBlockedScopeRequest(pkg: String) {
+  fun removeBlockedScopeRequest(pkg: String, userId: Int) {
+    val key = "$pkg/$userId"
     val blocked =
         (getModulePrefs("lspd", 0, "config")["scope_request_blocked"] as? MutableSet<String>)
             ?: return
-    if (blocked.remove(pkg)) {
+    if (blocked.remove(key)) {
       updateModulePref("lspd", 0, "config", "scope_request_blocked", blocked)
     }
   }
@@ -144,4 +145,5 @@ object PreferenceStore {
     }
   }
 }
+
 
