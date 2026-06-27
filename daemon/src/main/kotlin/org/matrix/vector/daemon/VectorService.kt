@@ -342,7 +342,7 @@ object VectorService : IDaemonService.Stub() {
     if (moduleName != null && isXposedModule && !isRemovedAction && !isRemovedForAllUsers) {
       val scopes = ConfigCache.getModuleScope(moduleName) ?: emptyList()
       val isSystemModule = scopes.any { it.packageName == "system" }
-      val isEnabled = ManagerService.enabledModules().contains(moduleName)
+      val isEnabled = ManagerService.enabledModules().any { it.packageName == moduleName }
 
       NotificationManager.notifyModuleUpdated(moduleName, userId, isEnabled, isSystemModule)
     }
