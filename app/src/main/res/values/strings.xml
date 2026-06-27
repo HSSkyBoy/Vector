@@ -167,8 +167,6 @@
     <!-- SettingsActivity -->
     <string name="menu_hide">Hide</string>
     <!-- ModulesActivity and AppListActivity -->
-    <string name="module_app_info">App info</string>
-    <string name="list_empty">¯\\_(ツ)_\/¯\nNothing here</string>
     <!-- SettingsActivity -->
     <string name="settings_group_framework">Framework</string>
     <string name="settings_disable_verbose_log">Disable verbose logs</string>
@@ -253,5 +251,6 @@
     <string name="color_brown">Brown</string>
     <string name="color_blue_grey">Blue grey</string>
 </resources>
+
 
 
