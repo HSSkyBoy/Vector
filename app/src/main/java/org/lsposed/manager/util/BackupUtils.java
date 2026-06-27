@@ -56,7 +56,7 @@ public class BackupUtils {
                 continue;
             }
             JSONObject moduleObject = new JSONObject();
-            moduleObject.put("enable", ModuleUtil.getInstance().isModuleEnabled(module.packageName));
+            moduleObject.put("enable", ModuleUtil.getInstance().isModuleEnabled(module.packageName, 0));
             moduleObject.put("package", module.packageName);
             List<ScopeAdapter.ApplicationWithEquals> scope = ConfigManager.getModuleScope(module.packageName);
             JSONArray scopeArray = new JSONArray();
@@ -100,7 +100,7 @@ public class BackupUtils {
                     ModuleUtil.InstalledModule module = ModuleUtil.getInstance().getModule(name);
                     if (module != null) {
                         var enabled = moduleObject.getBoolean("enable");
-                        ModuleUtil.getInstance().setModuleEnabled(name, enabled);
+                        ModuleUtil.getInstance().setModuleEnabled(name, 0, enabled);
                         if (!enabled) continue;
                         JSONArray scopeArray = moduleObject.getJSONArray("scope");
                         HashSet<ScopeAdapter.ApplicationWithEquals> scope = new HashSet<>();
