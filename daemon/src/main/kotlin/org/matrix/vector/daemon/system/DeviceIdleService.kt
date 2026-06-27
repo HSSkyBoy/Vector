@@ -18,13 +18,11 @@ object DeviceIdleService {
   @Volatile private var deviceIdleController: IDeviceIdleController? = null
   @Volatile private var binder: IBinder? = null
 
-  private val deathRecipient =
-      IBinder.DeathRecipient {
-        Log.w(TAG, "DeviceIdleService is dead")
-        binder?.unlinkToDeath(this, 0)
-        binder = null
-        deviceIdleController = null
-      }
+  private val deathRecipient = IBinder.DeathRecipient {
+    Log.w(TAG, "DeviceIdleService is dead")
+    binder = null
+    deviceIdleController = null
+  }
 
   private fun getDeviceIdleController(): IDeviceIdleController? {
     if (binder == null || deviceIdleController == null) {
