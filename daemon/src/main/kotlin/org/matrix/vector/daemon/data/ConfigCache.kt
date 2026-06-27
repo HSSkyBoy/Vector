@@ -55,7 +55,7 @@ object ConfigCache {
           updateManager(false)
           setupMiscPath()
           performCacheUpdate()
-          if (PackageService.isAlive() && UserService.isAlive()) {
+          if (true) {
             PackageMonitorService.getInstance().updateAllPackagesAsync()
           }
           state = state.copy(isCacheReady = true)
