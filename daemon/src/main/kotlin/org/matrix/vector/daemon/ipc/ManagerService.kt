@@ -242,7 +242,7 @@ object ManagerService : ILSPManagerService.Stub() {
   }
 
   override fun enableModule(packageName: String, userId: Int) =
-      ModuleDatabase.enableModule(packageName)
+      ModuleDatabase.enableModule(packageName).also { ModuleService.sendBinderForRunningModule(packageName) }
 
   override fun disableModule(packageName: String, userId: Int) = ModuleDatabase.disableModule(packageName)
 
