@@ -18,7 +18,6 @@ import org.matrix.vector.daemon.BuildConfig
 import org.matrix.vector.daemon.VectorDaemon
 import org.matrix.vector.daemon.ipc.InjectedModuleService
 import org.matrix.vector.daemon.ipc.ModuleService
-import org.matrix.vector.daemon.monitor.PackageMonitorService
 import org.matrix.vector.daemon.system.*
 import org.matrix.vector.daemon.utils.InstallerVerifier
 import org.matrix.vector.daemon.utils.applySqliteHelperWorkaround
@@ -55,9 +54,6 @@ object ConfigCache {
           updateManager(false)
           setupMiscPath()
           performCacheUpdate()
-          if (true) {
-            PackageMonitorService.getInstance().updateAllPackagesAsync()
-          }
           state = state.copy(isCacheReady = true)
         }
       }
