@@ -15,14 +15,12 @@ import java.io.Serializable
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 import org.lsposed.lspd.models.Module
 import org.matrix.vector.daemon.BuildConfig
 import org.matrix.vector.daemon.data.ConfigCache
 import org.matrix.vector.daemon.data.FileSystem
 import org.matrix.vector.daemon.data.ModuleDatabase
 import org.matrix.vector.daemon.data.PreferenceStore
-import org.matrix.vector.daemon.system.DeviceIdleService
 import org.matrix.vector.daemon.system.NotificationManager
 import org.matrix.vector.daemon.system.PER_USER_RANGE
 import org.matrix.vector.daemon.system.activityManager
@@ -33,138 +31,65 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
 
   companion object {
     private val uidSet = ConcurrentHashMap.newKeySet<Int>()
-    private val sentBinderSet = ConcurrentHashMap.newKeySet<ModuleBinderKey>()
-    private val sendingBinderSet = ConcurrentHashMap.newKeySet<ModuleBinderKey>()
     private val serviceMap = Collections.synchronizedMap(WeakHashMap<Module, ModuleService>())
-    private val binderExecutor =
-        Executors.newSingleThreadExecutor { r -> Thread(r, "module-binder-delivery") }
 
     fun uidClear() {
       uidSet.clear()
-      sentBinderSet.clear()
-      sendingBinderSet.clear()
     }
 
     fun uidStarts(uid: Int) {
       if (uidSet.add(uid)) {
-        sendBinderForUid(uid)
+        val module = ConfigCache.getModuleByUid(uid)
+        if (module?.file?.legacy == false) {
+          val service = serviceMap.getOrPut(module) { ModuleService(module) }
+          service.sendBinder(uid)
+        }
       }
     }
 
     fun uidGone(uid: Int) {
       uidSet.remove(uid)
-      sentBinderSet.removeIf { it.uid == uid }
-      sendingBinderSet.removeIf { it.uid == uid }
     }
-
-    fun sendBindersForRunningModules() {
-      for (uid in uidSet) {
-        sendBinderForUid(uid)
-      }
-    }
-
-    fun sendBinderForRunningModule(packageName: String) {
-      for (uid in uidSet) {
-        val module = ConfigCache.getModuleByUid(uid)
-        if (module != null && module.packageName == packageName) {
-          sendBinderForModule(module, uid)
-        }
-      }
-    }
-
-    private fun sendBinderForUid(uid: Int) {
-      val module = ConfigCache.getModuleByUid(uid) ?: return
-      sendBinderForModule(module, uid)
-    }
-
-    private fun sendBinderForModule(module: Module, uid: Int) {
-      if (module.file == null || module.file.legacy) return
-      val key = ModuleBinderKey(module.packageName, uid)
-      if (sentBinderSet.contains(key) || !sendingBinderSet.add(key)) return
-      try {
-        val service = synchronized(serviceMap) { serviceMap.getOrPut(module) { ModuleService(module) } }
-        binderExecutor.execute { service.sendBinder(uid, key) }
-      } catch (e: Throwable) {
-        sendingBinderSet.remove(key)
-        Log.w(TAG, "failed to schedule module binder for uid $uid", e)
-      }
-    }
-
-    private data class ModuleBinderKey(val packageName: String, val uid: Int)
   }
 
   /**
    * Forges a ContentProvider call to force the module's target app process to receive this Binder
    * IPC endpoint without standard Context.bindService() limits.
    */
-  private fun sendBinder(uid: Int, key: ModuleBinderKey) {
+  private fun sendBinder(uid: Int) {
     val name = loadedModule.packageName
-    try {
-      val userId = uid / PER_USER_RANGE
-      if (!ConfigCache.isModuleEnabledForUser(name, userId)) {
-        return
-      }
+    runCatching {
+          val userId = uid / PER_USER_RANGE
+          val authority = name + AUTHORITY_SUFFIX
+          val provider =
+              activityManager?.getContentProviderExternal(authority, userId, null, null)?.provider
 
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        try {
-          DeviceIdleService.addPowerSaveTempWhitelistApp(name, userId, "shell")
-          Thread.sleep(400L)
-        } catch (e: InterruptedException) {
-          Log.d(TAG, "sendBinder interrupted while waiting for whitelist, continuing for $name", e)
-        } catch (e: Throwable) {
-          Log.e(TAG, "failed to add $userId:$name to power save temp whitelist", e)
-        }
-      }
-
-      val authority = name + AUTHORITY_SUFFIX
-      var provider =
-          activityManager?.getContentProviderExternal(authority, userId, null, null)?.provider
-
-      var attempt = 1
-      while (provider == null && attempt < 3) {
-        Log.d(TAG, "no service provider for $name, attempt $attempt")
-        try {
-          Thread.sleep(1000L)
-        } catch (e: InterruptedException) {
-          Log.d(TAG, "sendBinder interrupted during retry sleep for $name, continuing", e)
-        }
-        provider = activityManager?.getContentProviderExternal(authority, userId, null, null)?.provider
-        attempt++
-      }
-
-      if (provider == null) {
-        Log.d(TAG, "no service provider for $name after 3 attempts")
-        return
-      }
-
-      val extra = Bundle().apply { putBinder("binder", asBinder()) }
-      val reply: Bundle? =
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            provider.call(
-                AttributionSource.Builder(1000).setPackageName("android").build(),
-                authority,
-                SEND_BINDER,
-                null,
-                extra)
-          } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.R) {
-            provider.call("android", null, authority, SEND_BINDER, null, extra)
-          } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
-            provider.call("android", authority, SEND_BINDER, null, extra)
-          } else {
-            provider.call("android", SEND_BINDER, null, extra)
+          if (provider == null) {
+            Log.d(TAG, "No service provider for $name")
+            return
           }
 
-      if (reply != null) {
-        Log.d(TAG, "sent module binder to $name")
-        sentBinderSet.add(key)
-      } else {
-        Log.w(TAG, "failed to send module binder to $name")
-      }
-    } catch (e: Throwable) {
-      Log.w(TAG, "failed to send module binder for uid $uid", e)
-    } finally {
-      sendingBinderSet.remove(key)
-    }
+          val extra = Bundle().apply { putBinder("binder", asBinder()) }
+          val reply: Bundle? =
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                provider.call(
+                    AttributionSource.Builder(1000).setPackageName("android").build(),
+                    authority,
+                    SEND_BINDER,
+                    null,
+                    extra)
+              } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.R) {
+                provider.call("android", null, authority, SEND_BINDER, null, extra)
+              } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                provider.call("android", authority, SEND_BINDER, null, extra)
+              } else {
+                provider.call("android", SEND_BINDER, null, extra)
+              }
+
+          if (reply != null) Log.d(TAG, "Sent module binder to $name")
+          else Log.w(TAG, "Failed to send module binder to $name")
+        }
+        .onFailure { Log.w(TAG, "Failed to send module binder for uid $uid", it) }
   }
 
   private fun ensureModule(): Int {
@@ -200,7 +125,7 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
 
   override fun requestScope(packages: List<String>, callback: IXposedScopeCallback) {
     val userId = ensureModule()
-    if (!PreferenceStore.isScopeRequestBlocked(loadedModule.packageName, userId)) {
+    if (!PreferenceStore.isScopeRequestBlocked(loadedModule.packageName)) {
       packages.forEach { pkg ->
         NotificationManager.requestModuleScope(loadedModule.packageName, userId, pkg, callback)
       }
@@ -279,7 +204,7 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
 
     runCatching {
           PreferenceStore.updateModulePrefs(loadedModule.packageName, userId, group, values)
-          (loadedModule.service as? InjectedModuleService)?.onUpdateRemotePreferences(userId, group, diff)
+          (loadedModule.service as? InjectedModuleService)?.onUpdateRemotePreferences(group, diff)
         }
         .getOrElse { throw RemoteException(it.message) }
   }
@@ -327,4 +252,3 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
         .getOrElse { throw RemoteException(it.message) }
   }
 }
-
