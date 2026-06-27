@@ -164,7 +164,6 @@ JingMatrix</string>
     <string name="reboot">重启系统</string>
     <string name="menu_hide">隐藏</string>
     <!-- ModulesActivity and AppListActivity -->
-    <string name="modules_other_app">在其它应用中查看</string>
     <string name="module_app_info">应用信息</string>
     <string name="list_empty">¯\\\\_(ツ)_\/¯\n空空如也</string>
     <!-- SettingsActivity -->
@@ -248,3 +247,4 @@ JingMatrix</string>
     <string name="color_brown">棕色</string>
     <string name="color_blue_grey">灰蓝</string>
 </resources>
+
