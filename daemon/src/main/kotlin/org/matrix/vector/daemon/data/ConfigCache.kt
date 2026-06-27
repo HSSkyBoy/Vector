@@ -17,6 +17,8 @@ import org.lsposed.lspd.models.Module
 import org.matrix.vector.daemon.BuildConfig
 import org.matrix.vector.daemon.VectorDaemon
 import org.matrix.vector.daemon.ipc.InjectedModuleService
+import org.matrix.vector.daemon.ipc.ModuleService
+import org.matrix.vector.daemon.monitor.PackageMonitorService
 import org.matrix.vector.daemon.system.*
 import org.matrix.vector.daemon.utils.InstallerVerifier
 import org.matrix.vector.daemon.utils.applySqliteHelperWorkaround
@@ -53,6 +55,9 @@ object ConfigCache {
           updateManager(false)
           setupMiscPath()
           performCacheUpdate()
+          if (PackageService.isAlive() && UserService.isAlive()) {
+            PackageMonitorService.getInstance().updateAllPackagesAsync()
+          }
           state = state.copy(isCacheReady = true)
         }
       }
@@ -268,6 +273,7 @@ object ConfigCache {
     //   Log.d(TAG, "${ps.processName}/${ps.uid}")
     //   modules.forEach { mod -> Log.d(TAG, "\t${mod.packageName}") }
     // }
+    ModuleService.sendBindersForRunningModules()
   }
 
   fun getModuleScope(packageName: String): MutableList<Application>? {
@@ -292,6 +298,15 @@ object ConfigCache {
           }
         }
     return result
+  }
+
+  fun isModuleEnabledForUser(packageName: String, userId: Int): Boolean {
+    return dbHelper.readableDatabase
+        .query(
+            "modules", arrayOf("enabled"),
+            "module_pkg_name = ? AND enabled = 1",
+            arrayOf(packageName), null, null, null)
+        .use { it.count > 0 }
   }
 
   fun getAutoInclude(packageName: String): Boolean {
@@ -483,3 +498,4 @@ object ConfigCache {
     return path.toString()
   }
 }
+
