@@ -204,7 +204,7 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
 
     runCatching {
           PreferenceStore.updateModulePrefs(loadedModule.packageName, userId, group, values)
-          (loadedModule.service as? InjectedModuleService)?.onUpdateRemotePreferences(group, diff)
+          (loadedModule.service as? InjectedModuleService)?.onUpdateRemotePreferences(userId, group, diff)
         }
         .getOrElse { throw RemoteException(it.message) }
   }
@@ -252,3 +252,4 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
         .getOrElse { throw RemoteException(it.message) }
   }
 }
+
