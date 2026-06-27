@@ -241,7 +241,7 @@ object ManagerService : ILSPManagerService.Stub() {
   override fun enableModule(packageName: String, userId: Int) =
       ModuleDatabase.enableModule(packageName, userId).also { ModuleService.sendBinderForRunningModule(packageName) }
 
-  override fun disableModule(packageName: String, userId: Int) = ModuleDatabase.disableModule(packageName)
+  override fun disableModule(packageName: String, userId: Int) = ModuleDatabase.disableModule(packageName, userId)
 
   override fun setModuleScope(packageName: String, scope: MutableList<Application>) =
       ModuleDatabase.setModuleScope(packageName, scope)
