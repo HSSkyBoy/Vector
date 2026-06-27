@@ -17,6 +17,7 @@ import org.lsposed.lspd.models.Module
 import org.matrix.vector.daemon.BuildConfig
 import org.matrix.vector.daemon.VectorDaemon
 import org.matrix.vector.daemon.ipc.InjectedModuleService
+import org.matrix.vector.daemon.ipc.ModuleService
 import org.matrix.vector.daemon.system.*
 import org.matrix.vector.daemon.utils.InstallerVerifier
 import org.matrix.vector.daemon.utils.applySqliteHelperWorkaround
@@ -268,6 +269,7 @@ object ConfigCache {
     //   Log.d(TAG, "${ps.processName}/${ps.uid}")
     //   modules.forEach { mod -> Log.d(TAG, "\t${mod.packageName}") }
     // }
+    ModuleService.sendBindersForRunningModules()
   }
 
   fun getModuleScope(packageName: String): MutableList<Application>? {
@@ -483,3 +485,4 @@ object ConfigCache {
     return path.toString()
   }
 }
+
