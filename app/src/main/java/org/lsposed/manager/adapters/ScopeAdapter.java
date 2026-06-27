@@ -128,25 +128,12 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
 
     private final OnMainSwitchChangeListener switchBarOnCheckedChangeListener = new OnMainSwitchChangeListener() {
         @Override
-        @Override
         public void onSwitchChanged(Switch view, boolean isChecked) {
             enabled = isChecked;
-            if (!moduleUtil.setModuleEnabled(module.packageName, module.userId, isChecked)) {
+            if (!moduleUtil.setModuleEnabled(module.packageName, isChecked)) {
                 view.setChecked(!isChecked);
                 enabled = !isChecked;
             }
-            if (enabled) {
-                if (!checkedList.isEmpty()) {
-                    new BlurBehindDialogBuilder(activity, R.style.ThemeOverlay_MaterialAlertDialog_Centered_FullWidthButtons)
-                            .setMessage(R.string.use_recommended_message)
-                            .setPositiveButton(android.R.string.ok, (dialog, which) -> checkRecommended())
-                            .setNegativeButton(android.R.string.cancel, null)
-                            .show();
-                } else {
-                    checkRecommended();
-                }
-            }
-
             var tmpChkList = new HashSet<>(checkedList);
             if (isChecked && !tmpChkList.isEmpty() && !ConfigManager.setModuleScope(module.packageName, module.legacy, tmpChkList)) {
                 view.setChecked(false);
@@ -237,12 +224,10 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
             fragment.showHint(R.string.module_is_not_activated_yet, false);
             return;
         }
-
-        var tmpChkList = new HashSet<>(checkedList);
-        tmpChkList.removeIf(i -> i.userId == module.userId);
-        tmpChkList.addAll(recommendedList);
-
         fragment.runAsync(() -> {
+            var tmpChkList = new HashSet<>(checkedList);
+            tmpChkList.removeIf(i -> i.userId == module.userId);
+            tmpChkList.addAll(recommendedList);
             ConfigManager.setModuleScope(module.packageName, module.legacy, tmpChkList);
             checkedList = tmpChkList;
             fragment.runOnUiThread(this::notifyDataSetChanged);
@@ -500,13 +485,13 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
 
     @Override
     public Filter getFilter() {
+        return new ApplicationFilter();
+    }
 
-    public void refresh(boolean force) {
-        setLoaded(null, false);
-        enabled = moduleUtil.isModuleEnabled(module.packageName, module.userId);
-        fragment.runAsync(() -> {
-            List<PackageInfo> appList = AppHelper.getAppList(force);
-            denyList = AppHelper.getDenyList(force);
+    @Override
+    public int getItemCount() {
+        return showList.size();
+    }
 
     public void refresh() {
         refresh(false);
@@ -669,13 +654,13 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
             var builder = new BlurBehindDialogBuilder(activity, R.style.ThemeOverlay_MaterialAlertDialog_Centered_FullWidthButtons);
             builder.setMessage(!recommendedList.isEmpty() ? R.string.no_scope_selected_has_recommended : R.string.no_scope_selected);
             if (!recommendedList.isEmpty()) {
+                builder.setPositiveButton(android.R.string.ok, (dialog, which) -> checkRecommended());
+            } else {
                 builder.setPositiveButton(android.R.string.cancel, null);
             }
             builder.setNegativeButton(!recommendedList.isEmpty() ? android.R.string.cancel : android.R.string.ok, (dialog, which) -> {
-                moduleUtil.setModuleEnabled(module.packageName, module.userId, false);
+                moduleUtil.setModuleEnabled(module.packageName, false);
                 Toast.makeText(activity, activity.getString(R.string.module_disabled_no_selection, module.getAppName()), Toast.LENGTH_LONG).show();
-                fragment.navigateUp();
-            });
                 fragment.navigateUp();
             });
             builder.show();
@@ -717,4 +702,3 @@ public class ScopeAdapter extends EmptyStateRecyclerView.EmptyStateAdapter<Scope
         }
     }
 }
-
