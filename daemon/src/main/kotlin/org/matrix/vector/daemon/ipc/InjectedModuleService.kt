@@ -19,8 +19,8 @@ private const val TAG = "VectorInjectedModuleService"
 
 class InjectedModuleService(private val packageName: String) : ILSPInjectedModuleService.Stub() {
 
-  // Tracks active RemotePreferenceCallbacks linked by config group
-  private val callbacks = ConcurrentHashMap<String, MutableSet<IRemotePreferenceCallback>>()
+  // Tracks active RemotePreferenceCallbacks linked by (userId, group)
+  private val callbacks = ConcurrentHashMap<RemotePreferenceKey, MutableSet<IRemotePreferenceCallback>>()
 
   override fun getFrameworkProperties(): Long {
     var prop = IXposedService.PROP_CAP_SYSTEM or IXposedService.PROP_CAP_REMOTE
@@ -40,9 +40,12 @@ class InjectedModuleService(private val packageName: String) : ILSPInjectedModul
         "map", PreferenceStore.getModulePrefs(packageName, userId, group) as Serializable)
 
     if (callback != null) {
-      val groupCallbacks = callbacks.getOrPut(group) { ConcurrentHashMap.newKeySet() }
+      val callbackKey = RemotePreferenceKey(userId, group)
+      val groupCallbacks = callbacks.getOrPut(callbackKey) { ConcurrentHashMap.newKeySet() }
       groupCallbacks.add(callback)
-      runCatching { callback.asBinder().linkToDeath({ groupCallbacks.remove(callback) }, 0) }
+      runCatching {
+            callback.asBinder().linkToDeath({ removeCallback(callbackKey, callback) }, 0)
+          }
           .onFailure { Log.w(TAG, "requestRemotePreferences linkToDeath failed", it) }
     }
     return bundle
@@ -68,10 +71,20 @@ class InjectedModuleService(private val packageName: String) : ILSPInjectedModul
   }
 
   // Called by ModuleService when prefs are updated globally
-  fun onUpdateRemotePreferences(group: String, diff: Bundle) {
-    val groupCallbacks = callbacks[group] ?: return
+  fun onUpdateRemotePreferences(userId: Int, group: String, diff: Bundle) {
+    val groupCallbacks = callbacks[RemotePreferenceKey(userId, group)] ?: return
     for (callback in groupCallbacks) {
-      runCatching { callback.onUpdate(diff) }.onFailure { groupCallbacks.remove(callback) }
+      runCatching { callback.onUpdate(diff) }
+          .onFailure { removeCallback(RemotePreferenceKey(userId, group), callback) }
     }
   }
+
+  private fun removeCallback(key: RemotePreferenceKey, callback: IRemotePreferenceCallback) {
+    callbacks.computeIfPresent(key) { _, groupCallbacks ->
+      groupCallbacks.remove(callback)
+      if (groupCallbacks.isEmpty()) null else groupCallbacks
+    }
+  }
+
+  private data class RemotePreferenceKey(val userId: Int, val group: String)
 }
