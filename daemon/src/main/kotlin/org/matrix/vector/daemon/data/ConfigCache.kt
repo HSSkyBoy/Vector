@@ -296,6 +296,15 @@ object ConfigCache {
     return result
   }
 
+  fun isModuleEnabledForUser(packageName: String, userId: Int): Boolean {
+    return dbHelper.readableDatabase
+        .query(
+            "modules", arrayOf("enabled"),
+            "module_pkg_name = ? AND enabled = 1",
+            arrayOf(packageName), null, null, null)
+        .use { it.count > 0 }
+  }
+
   fun getAutoInclude(packageName: String): Boolean {
     if (packageName == "lspd") return false
 
