@@ -2,6 +2,7 @@ package org.matrix.vector.impl.core
 
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.os.Process
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedInterface
@@ -74,6 +75,10 @@ object VectorModuleManager {
                     applicationInfo = module.applicationInfo,
                     service = module.service, // Our IPC client
                 )
+
+            // The module service provider only runs in the module app. Deliver an equivalent
+            // binder directly to module code loaded in this process.
+            injectXposedService(module, moduleClassLoader, vectorContext)
 
             val entries = instantiateEntries(module, moduleClassLoader, vectorContext)
             entries.forEach { moduleInstance ->
@@ -171,6 +176,7 @@ object VectorModuleManager {
                     applicationInfo = module.applicationInfo,
                     service = module.service,
                 )
+            injectXposedService(module, moduleClassLoader, vectorContext)
             newEntries = instantiateEntries(module, moduleClassLoader, vectorContext)
             if (newEntries.size != module.file.moduleClassNames.size) {
                 throw IllegalStateException("Failed to instantiate hot reload entry")
@@ -207,6 +213,32 @@ object VectorModuleManager {
                 unhookAllModuleHooks(module.packageName, oldHandles.toSet())
             }
             unfreezeHooks(module.packageName)
+        }
+    }
+
+    private fun injectXposedService(
+        module: Module,
+        moduleClassLoader: ClassLoader,
+        vectorContext: VectorContext,
+    ) {
+        if (module.file.legacy) return
+        runCatching {
+            val helperClass =
+                moduleClassLoader.loadClass(
+                    "io.github.libxposed.service.XposedServiceHelper"
+                )
+            val onBinderReceivedMethod =
+                helperClass.getDeclaredMethod("onBinderReceived", IBinder::class.java)
+            onBinderReceivedMethod.isAccessible = true
+            val xposedService = VectorXposedService(
+                module.packageName,
+                vectorContext,
+                module.service,
+            )
+            onBinderReceivedMethod.invoke(null, xposedService.asBinder())
+            Log.d(TAG, "Injected XposedService for ${module.packageName}")
+        }.onFailure { e ->
+            Log.w(TAG, "Failed to inject XposedService for ${module.packageName}", e)
         }
     }
 

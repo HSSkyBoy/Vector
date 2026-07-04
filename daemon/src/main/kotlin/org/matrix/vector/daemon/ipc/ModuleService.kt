@@ -195,6 +195,10 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
     val userId = ensureModule()
     val values = mutableMapOf<String, Any?>()
 
+    if (diff.getBoolean("clear", false)) {
+      PreferenceStore.deleteModulePrefs(loadedModule.packageName, userId, group)
+    }
+
     diff.getSerializable("delete")?.let { deletes ->
       (deletes as Set<*>).forEach { values[it as String] = null }
     }
@@ -211,6 +215,8 @@ class ModuleService(private val loadedModule: Module) : IXposedService.Stub() {
 
   override fun deleteRemotePreferences(group: String) {
     PreferenceStore.deleteModulePrefs(loadedModule.packageName, ensureModule(), group)
+    (loadedModule.service as? InjectedModuleService)
+        ?.onUpdateRemotePreferences(group, Bundle().apply { putBoolean("clear", true) })
   }
 
   override fun listRemoteFiles(): Array<String> {
