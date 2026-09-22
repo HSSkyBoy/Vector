@@ -6,10 +6,11 @@ import androidx.annotation.RequiresApi
 import io.github.libxposed.api.XposedInterface
 import java.util.Collections
 import java.util.WeakHashMap
-import org.matrix.vector.util.Utils
+import org.matrix.vector.impl.LegacyDispatchGate
 import org.matrix.vector.impl.VectorLifecycleManager
 import org.matrix.vector.impl.di.LegacyPackageInfo
 import org.matrix.vector.impl.di.VectorBootstrap
+import org.matrix.vector.util.Utils
 
 /** Safe reflection helper */
 private inline fun <reified T> Any.getFieldValue(name: String): T? {
@@ -184,7 +185,10 @@ object LoadedApkCreateCLHooker : XposedInterface.Hooker {
             // Legacy API: Only dispatch once during initial load
             if (isInitialLoad) {
                 val mIncludeCode = loadedApk.getFieldValue<Boolean>("mIncludeCode") ?: true
-                if (ctx.isFirstPackage || mIncludeCode) {
+                if (
+                    (ctx.isFirstPackage || mIncludeCode) &&
+                        LegacyDispatchGate.claim(ctx.legacyPackageName)
+                ) {
                     VectorBootstrap.withLegacy { delegate ->
                         delegate.onPackageLoaded(
                             LegacyPackageInfo(
