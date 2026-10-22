@@ -37,7 +37,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE -Wpedantic ${IGNORED_WARNINGS})
 # PUBLIC libraries are propagated to targets that link against this one.
 # PRIVATE libraries are only used for the compilation of this target.
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    dobby_static
+    dobby
     lsplant_static
     xz_static
     log # Android logging library
