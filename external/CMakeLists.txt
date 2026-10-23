@@ -19,6 +19,7 @@ target_include_directories(xz_static PRIVATE ${XZ_INCLUDES})
 option(LSPLANT_BUILD_SHARED OFF)
 option(Plugin.SymbolResolver OFF)
 option(FMT_INSTALL OFF)
+option(DOBBY_GENERATE_SHARED OFF)
 
 add_subdirectory(dobby)
 add_subdirectory(fmt)
